@@ -1,7 +1,7 @@
-import { DemoVariant1 } from "@/components/demo";
-
 export default function Home() {
   return (
-    <DemoVariant1 />
+    <div className="flex items-center justify-center h-screen">
+      <h1 className="text-4xl font-bold">Welcome to EUNOIA</h1>
+    </div>
   );
 }
