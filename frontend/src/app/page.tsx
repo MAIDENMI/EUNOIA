@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { AnimatedFeatureCard } from "@/components/ui/feature-card-1";
 import AnimatedGradientBackground from "@/components/ui/animated-gradient-background";
+import Link from "next/link";
 
 export default function Home() {
   const [hoveredColor, setHoveredColor] = useState<"purple" | "blue" | "orange" | null>(null);
@@ -30,18 +31,21 @@ export default function Home() {
               color="purple"
             />
           </div>
-          <div
-            onMouseEnter={() => setHoveredColor("blue")}
-            onMouseLeave={() => setHoveredColor(null)}
-          >
-            <AnimatedFeatureCard
-              index="002"
-              tag="Human Therapist"
-              title="Connect with Ryan, our licensed therapist for professional guidance"
-              imageSrc="/ryan.png"
-              color="blue"
-            />
-          </div>
+          <Link href="/call">
+            <div
+              onMouseEnter={() => setHoveredColor("blue")}
+              onMouseLeave={() => setHoveredColor(null)}
+              className="cursor-pointer"
+            >
+              <AnimatedFeatureCard
+                index="002"
+                tag="3D Therapist"
+                title="Connect with EMURA's 3D avatar therapist with voice interaction and lip-sync"
+                imageSrc="/ryan.png"
+                color="blue"
+              />
+            </div>
+          </Link>
           <div
             onMouseEnter={() => setHoveredColor("orange")}
             onMouseLeave={() => setHoveredColor(null)}
