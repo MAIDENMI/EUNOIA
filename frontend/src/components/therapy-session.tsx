@@ -1,11 +1,21 @@
 "use client"
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import AnimatedGradientBackground from "@/components/ui/animated-gradient-background";
 import { VoiceInput } from "@/components/ui/voice-input";
 import { FadingTextStream } from "@/components/ui/fading-text-stream";
 import { AnimatePresence, motion } from "framer-motion";
+import { MoreVertical } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const TherapySession = () => {
+  const router = useRouter();
   const [isListening, setIsListening] = useState(false);
   const [audioLevel, setAudioLevel] = useState(0);
   
@@ -15,6 +25,23 @@ const TherapySession = () => {
     <div className="relative w-full h-screen overflow-hidden">
       {/* Gradient Background */}
       <AnimatedGradientBackground audioLevel={audioLevel} isListening={isListening} />
+      
+      {/* Options Dropdown - Top Right */}
+      <div className="absolute top-4 right-4 z-20">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="h-9 w-9">
+              <MoreVertical className="h-5 w-5" />
+              <span className="sr-only">Open options</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuItem onClick={() => router.push('/history')}>
+              History
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
       
       <div className="relative z-10 flex flex-col items-center justify-center h-full px-4 gap-8">
         <VoiceInput 
