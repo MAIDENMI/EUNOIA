@@ -1,6 +1,7 @@
 "use client"
 import { useState, useEffect, useRef, useMemo } from "react";
 import AnimatedGradientBackground from "@/components/ui/animated-gradient-background";
+import { Card } from "@/components/ui/card";
 import { Dock } from "@/components/ui/dock-two";
 import { FadingTextStream } from "@/components/ui/fading-text-stream";
 import { motion, useMotionValue, animate } from "framer-motion";
@@ -13,25 +14,211 @@ import {
   VideoOff, 
   PhoneOff, 
   MoreVertical,
-  Subtitles
+  Subtitles,
+  ArrowLeft
 } from "lucide-react";
+import Link from "next/link";
 
 export default function CallPage() {
-  const isListening = useMemo(() => true, []); // Set to true for demo
-  const audioLevel = useMemo(() => 0, []);
+  const [isListening, setIsListening] = useState(false);
+  const [audioLevel, setAudioLevel] = useState(0);
   const [viewMode, setViewMode] = useState<"pip" | "split">("pip"); // pip = picture-in-picture, split = 50/50
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [isMicOn, setIsMicOn] = useState(true);
   const [isVideoOn, setIsVideoOn] = useState(true);
-  const [isCaptionsOn, setIsCaptionsOn] = useState(false);
+  const [isCaptionsOn, setIsCaptionsOn] = useState(true);
   const [callTime, setCallTime] = useState(0);
+  
+  // Voice interaction state
+  const [isRecording, setIsRecording] = useState(false);
+  const [transcript, setTranscript] = useState("");
+  const [aiResponse, setAiResponse] = useState("");
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [messages, setMessages] = useState<Array<{role: string, content: string}>>([]);
+  const [permissionError, setPermissionError] = useState<string | null>(null);
+  const [showPermissionHelp, setShowPermissionHelp] = useState(false);
+  
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const talkingHeadRef = useRef<HTMLIFrameElement>(null);
+  const recognitionRef = useRef<any>(null);
+  const userId = useRef(`user_${Date.now()}`);
   
   const x = useMotionValue(0);
   const y = useMotionValue(0);
   
   const sampleText = "Hello, I'm speaking to the AI therapist right now. This text shows what I'm saying in real-time as the voice recognition processes my speech. The conversation is flowing naturally and the text continues to appear word by word. This creates a smooth and engaging experience during our therapy session.";
+
+  // Voice processing functions
+  const startRecording = async () => {
+    // Check for microphone permission first
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach(track => track.stop()); // Stop the test stream
+    } catch (error) {
+      console.error('Microphone permission denied:', error);
+      setPermissionError('Microphone access is required for voice chat. Please allow microphone access and try again.');
+      setShowPermissionHelp(true);
+      return;
+    }
+
+    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+      alert('Speech recognition not supported in this browser. Please use Chrome, Edge, or Safari.');
+      return;
+    }
+
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    const recognition = new SpeechRecognition();
+
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = 'en-US';
+
+    recognition.onstart = () => {
+      setIsRecording(true);
+      setIsListening(true);
+      setTranscript("");
+      setAiResponse("");
+    };
+
+    recognition.onresult = (event: any) => {
+      const result = event.results[0][0].transcript;
+      setTranscript(result);
+      setIsRecording(false);
+      setIsListening(false);
+      processMessage(result);
+    };
+
+    recognition.onerror = (event: any) => {
+      console.error('Speech recognition error:', event.error);
+      setIsRecording(false);
+      setIsListening(false);
+      setAiResponse("Sorry, I couldn't hear you clearly. Please try again.");
+    };
+
+    recognition.onend = () => {
+      setIsRecording(false);
+      setIsListening(false);
+    };
+
+    recognitionRef.current = recognition;
+    recognition.start();
+  };
+
+  const processMessage = async (message: string) => {
+    setIsProcessing(true);
+    
+    try {
+      const response = await fetch('http://localhost:8000/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: message,
+          context: messages.slice(-4),
+          user_id: userId.current
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`AI Service Error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      setAiResponse(data.response);
+      
+      setMessages(prev => [
+        ...prev,
+        { role: 'user', content: message },
+        { role: 'assistant', content: data.response }
+      ]);
+
+      // Make TalkingHead speak
+      if (talkingHeadRef.current) {
+        makeTalkingHeadSpeak(data.response);
+      }
+
+    } catch (error) {
+      console.error('Error:', error);
+      const errorMsg = "I'm having trouble connecting. Please check that the backend services are running.";
+      setAiResponse(errorMsg);
+      
+      if (talkingHeadRef.current) {
+        makeTalkingHeadSpeak(errorMsg);
+      }
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const makeTalkingHeadSpeak = async (text: string) => {
+    try {
+      setIsSpeaking(true);
+      
+      // Send message to TalkingHead iframe
+      if (talkingHeadRef.current && talkingHeadRef.current.contentWindow) {
+        talkingHeadRef.current.contentWindow.postMessage({
+          type: 'SPEAK',
+          text: text,
+          voice: 'Rachel'
+        }, 'http://localhost:8080');
+      }
+
+      // Get voice from our service
+      const voiceResponse = await fetch('http://localhost:8001/voice/synthesize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: text,
+          voice_id: '21m00Tcm4TlvDq8ikWAM' // Rachel
+        })
+      });
+
+      if (voiceResponse.ok) {
+        const voiceData = await voiceResponse.json();
+        if (voiceData.audio_base64) {
+          await playAudio(voiceData.audio_base64);
+        }
+      }
+
+    } catch (error) {
+      console.error('TalkingHead speak error:', error);
+      setIsSpeaking(false);
+    }
+  };
+
+  const playAudio = (base64Audio: string): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      try {
+        const binaryString = atob(base64Audio);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        const blob = new Blob([bytes], { type: 'audio/mpeg' });
+        const audioUrl = URL.createObjectURL(blob);
+        
+        const audio = new Audio(audioUrl);
+        
+        audio.onended = () => {
+          URL.revokeObjectURL(audioUrl);
+          setIsSpeaking(false);
+          resolve();
+        };
+        
+        audio.onerror = (error) => {
+          URL.revokeObjectURL(audioUrl);
+          setIsSpeaking(false);
+          reject(error);
+        };
+        
+        audio.play().catch(reject);
+      } catch (error) {
+        setIsSpeaking(false);
+        reject(error);
+      }
+    });
+  };
 
   // Timer for call duration
   useEffect(() => {
@@ -101,6 +288,14 @@ export default function CallPage() {
         setStream(mediaStream);
       } catch (error) {
         console.error("Error accessing webcam:", error);
+        const mediaError = error as DOMException;
+        if (mediaError.name === 'NotAllowedError') {
+          console.log("Camera/microphone permission denied. User can still use voice chat without video.");
+        } else if (mediaError.name === 'NotFoundError') {
+          console.log("No camera/microphone found. User can still use voice chat.");
+        } else {
+          console.log("Camera setup failed:", mediaError.message || 'Unknown error');
+        }
       }
     }
 
@@ -151,8 +346,13 @@ export default function CallPage() {
         <div className="w-full h-full flex flex-col px-6 py-2 gap-1">
           {/* Header with Session Title and Timer */}
           <div className="flex items-center justify-between my-4">
-            {/* Session Title */}
-            <h2 className="text-lg font-medium text-foreground">AI Therapy Session</h2>
+            {/* Back Button and Session Title */}
+            <div className="flex items-center gap-4">
+              <Link href="/" className="p-2 rounded-lg bg-white/20 hover:bg-white/30 transition-colors">
+                <ArrowLeft className="w-5 h-5 text-white" />
+              </Link>
+              <h2 className="text-lg font-medium text-white">Therapy Call with EMURA</h2>
+            </div>
             
             {/* Timer Pill */}
             <motion.div
@@ -185,21 +385,48 @@ export default function CallPage() {
             {/* Picture-in-Picture Mode */}
             {viewMode === "pip" && (
               <div ref={containerRef} className="relative w-full h-full bg-gray-900 rounded-xl overflow-hidden">
-                {/* AI Therapist Video Placeholder */}
-                <div className="w-full h-full flex items-center justify-center">
-                  <span className="text-gray-500 text-lg">AI Therapist Video</span>
-                </div>
+                {/* TalkingHead 3D Therapist */}
+                <iframe
+                  ref={talkingHeadRef}
+                  src="http://localhost:8080"
+                  className="w-full h-full border-0"
+                  title="EMURA 3D Therapist"
+                  allow="microphone; camera; autoplay"
+                />
                 
                 {/* Captions - Bottom Left */}
                 {isCaptionsOn && (
-                  <div className="absolute bottom-6 left-6 max-w-2xl">
-                    <FadingTextStream 
-                      text={isListening ? sampleText : ""}
-                      speed={80}
-                      className="text-white text-base"
-                      lines={2}
-                      showGradients={false}
-                    />
+                  <div className="absolute bottom-6 left-6 max-w-2xl space-y-2">
+                    {transcript && (
+                      <div className="bg-blue-500/20 backdrop-blur-sm p-3 rounded-lg border border-blue-400/50">
+                        <p className="text-blue-200 text-xs mb-1">You:</p>
+                        <p className="text-white text-sm">{transcript}</p>
+                      </div>
+                    )}
+                    {aiResponse && (
+                      <div className="bg-purple-500/20 backdrop-blur-sm p-3 rounded-lg border border-purple-400/50">
+                        <p className="text-purple-200 text-xs mb-1">EMURA:</p>
+                        <FadingTextStream 
+                          text={aiResponse}
+                          speed={50}
+                          className="text-white text-sm"
+                          lines={3}
+                          showGradients={false}
+                        />
+                      </div>
+                    )}
+                    {isProcessing && (
+                      <div className="bg-gray-500/20 backdrop-blur-sm p-3 rounded-lg border border-gray-400/50">
+                        <div className="flex items-center gap-2">
+                          <div className="flex gap-1">
+                            <div className="w-2 h-2 bg-white rounded-full animate-bounce" />
+                            <div className="w-2 h-2 bg-white rounded-full animate-bounce delay-100" />
+                            <div className="w-2 h-2 bg-white rounded-full animate-bounce delay-200" />
+                          </div>
+                          <span className="text-white text-sm">EMURA is thinking...</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
                 
@@ -279,6 +506,12 @@ export default function CallPage() {
                     isActive: isVideoOn
                   },
                   {
+                    icon: isRecording ? MicOff : Mic,
+                    label: isRecording ? "Stop Recording" : "Start Voice Chat",
+                    onClick: startRecording,
+                    isActive: isRecording || isProcessing || isSpeaking
+                  },
+                  {
                     icon: Subtitles,
                     label: isCaptionsOn ? "Turn off captions" : "Turn on captions",
                     onClick: () => setIsCaptionsOn(!isCaptionsOn),
@@ -305,6 +538,49 @@ export default function CallPage() {
           </div>
         </div>
       </div>
+
+      {/* Permission Help Overlay */}
+      {showPermissionHelp && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-lg p-6 max-w-md w-full shadow-xl"
+          >
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              Microphone Permission Required
+            </h3>
+            <p className="text-gray-600 mb-4">
+              {permissionError}
+            </p>
+            <div className="text-sm text-gray-500 mb-6">
+              <p className="mb-2"><strong>To enable voice chat:</strong></p>
+              <ol className="list-decimal list-inside space-y-1">
+                <li>Click the microphone icon in your browser's address bar</li>
+                <li>Select "Allow" for microphone access</li>
+                <li>Refresh the page and try again</li>
+              </ol>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowPermissionHelp(false);
+                  setPermissionError(null);
+                }}
+                className="flex-1 px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors"
+              >
+                Close
+              </button>
+              <button
+                onClick={() => window.location.reload()}
+                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Refresh Page
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }
