@@ -259,3 +259,7 @@ export function whisperIsLoaded() {
   return whisperAudio !== null;
 }
 
+
+
+
+
