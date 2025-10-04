@@ -17,14 +17,14 @@ interface AnimatedGradientBackgroundProps {
    /**
     * Array of colors to use in the radial gradient.
     * Each color corresponds to a stop percentage in `gradientStops`.
-    * @default ["#FFFFFF", "#2979FF", "#FF80AB", "#FF6D00", "#FFD600", "#00E676", "#3D5AFE"]
+    * @default ["#FFFFFF", "#2979FF", "#FF80AB", "#FF6D00", "#FFD600", "#00E676", "#3D5AFE", "transparent"]
     */
    gradientColors?: string[];
 
    /**
     * Array of percentage stops corresponding to each color in `gradientColors`.
     * The values should range between 0 and 100.
-    * @default [35, 50, 60, 70, 80, 90, 100]
+    * @default [35, 50, 60, 70, 80, 90, 95, 100]
     */
    gradientStops?: number[];
 
@@ -60,6 +60,27 @@ interface AnimatedGradientBackgroundProps {
     * @default 0
     */
    topOffset?: number;
+
+   /**
+    * Audio level (0-2 range) to make the gradient react to voice input.
+    * When provided, the gradient will expand/contract based on audio intensity.
+    * @default 0
+    */
+   audioLevel?: number;
+
+   /**
+    * Sensitivity multiplier for audio reactivity.
+    * Higher values make the gradient more responsive to audio changes.
+    * @default 30
+    */
+   audioSensitivity?: number;
+
+   /**
+    * Whether the microphone is currently listening.
+    * When false, the gradient will display blue/violet colors.
+    * @default false
+    */
+   isListening?: boolean;
 }
 
 /**
@@ -82,14 +103,18 @@ const AnimatedGradientBackground: React.FC<AnimatedGradientBackgroundProps> = ({
       "#FF6D00",
       "#FFD600",
       "#00E676",
-      "#3D5AFE"
+      "#3D5AFE",
+      "transparent"
    ],
-   gradientStops = [35, 50, 60, 70, 80, 90, 100],
+   gradientStops = [35, 50, 60, 70, 80, 90, 95, 100],
    animationSpeed = 0.05,
    breathingRange = 15,
    containerStyle = {},
    topOffset = 0,
    containerClassName = "",
+   audioLevel = 0,
+   audioSensitivity = 30,
+   isListening = false,
 }) => {
 
 
@@ -104,6 +129,7 @@ const AnimatedGradientBackground: React.FC<AnimatedGradientBackgroundProps> = ({
    }
 
    const containerRef = useRef<HTMLDivElement | null>(null);
+   const smoothedAudioLevelRef = useRef<number>(0);
 
    useEffect(() => {
       let animationFrame: number;
@@ -117,11 +143,81 @@ const AnimatedGradientBackground: React.FC<AnimatedGradientBackgroundProps> = ({
          if (!Breathing) directionWidth = 0;
          width += directionWidth * animationSpeed;
 
+         // Smooth audio level transitions using linear interpolation (lerp)
+         const smoothingFactor = 0.2; // Lower = smoother but slower response
+         smoothedAudioLevelRef.current += (audioLevel - smoothedAudioLevelRef.current) * smoothingFactor;
+
+         // Add audio reactivity to the gradient size
+         const audioBoost = smoothedAudioLevelRef.current * audioSensitivity;
+         const finalWidth = width + audioBoost;
+
+         // Dynamically adjust colors based on listening state and audio level
+         let dynamicColors: string[];
+         
+         if (!isListening) {
+            // Mic is off: Always show calm blue tones
+            dynamicColors = [
+               "#FFFFFF",
+               "#5E35B1", // Deep purple
+               "#3D5AFE", // Blue
+               "#2979FF", // Light blue
+               "#00BCD4", // Cyan
+               "#4FC3F7", // Sky blue
+               "#7C4DFF", // Violet
+               "transparent" // Soft edge
+            ];
+         } else {
+            // Mic is on: Dynamic colors based on audio level
+            // Quiet (0-0.5) = Blue/Violet dominant
+            // Medium (0.5-1) = Mix of colors
+            // Loud (1+) = Red/Orange dominant
+            const smoothedLevel = smoothedAudioLevelRef.current;
+            const intensity = Math.min(smoothedLevel, 2); // Cap at 2
+            
+            if (intensity < 0.5) {
+               // Quiet: Blue and violet tones
+               dynamicColors = [
+                  "#FFFFFF",
+                  "#5E35B1", // Deep purple
+                  "#3D5AFE", // Blue
+                  "#2979FF", // Light blue
+                  "#00BCD4", // Cyan
+                  "#4FC3F7", // Sky blue
+                  "#7C4DFF", // Violet
+                  "transparent" // Soft edge
+               ];
+            } else if (intensity < 1.2) {
+               // Medium: Mix of colors
+               dynamicColors = [
+                  "#FFFFFF",
+                  "#9C27B0", // Purple
+                  "#FF6B9D", // Pink
+                  "#FF9100", // Orange
+                  "#FFC107", // Amber
+                  "#00E5FF", // Cyan
+                  "#536DFE", // Indigo
+                  "transparent" // Soft edge
+               ];
+            } else {
+               // Loud: Red and warm tones
+               dynamicColors = [
+                  "#FFFFFF",
+                  "#FF1744", // Red
+                  "#FF6D00", // Deep orange
+                  "#FF3D00", // Red-orange
+                  "#FF5722", // Orange red
+                  "#FF9100", // Orange
+                  "#FF4081", // Pink
+                  "transparent" // Soft edge
+               ];
+            }
+         }
+
          const gradientStopsString = gradientStops
-            .map((stop, index) => `${gradientColors[index]} ${stop}%`)
+            .map((stop, index) => `${dynamicColors[index]} ${stop}%`)
             .join(", ");
 
-         const gradient = `radial-gradient(${width}% ${width+topOffset}% at 50% 20%, ${gradientStopsString})`;
+         const gradient = `radial-gradient(${finalWidth}% ${finalWidth+topOffset}% at 50% 20%, ${gradientStopsString})`;
 
          if (containerRef.current) {
             containerRef.current.style.background = gradient;
@@ -133,7 +229,7 @@ const AnimatedGradientBackground: React.FC<AnimatedGradientBackgroundProps> = ({
       animationFrame = requestAnimationFrame(animateGradient);
 
       return () => cancelAnimationFrame(animationFrame); // Cleanup animation
-   }, [startingGap, Breathing, gradientColors, gradientStops, animationSpeed, breathingRange, topOffset]);
+   }, [startingGap, Breathing, gradientColors, gradientStops, animationSpeed, breathingRange, topOffset, audioLevel, audioSensitivity, isListening]);
 
    return (
       <motion.div
