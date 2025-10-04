@@ -1562,7 +1562,7 @@ Frames Proc.  : ${data.framesProcessed ?? 'N/A'}`;
 
             document.getElementById('btn-load-avatar').addEventListener('click', async () => {
                 try {
-                    updateStatus('Loading avatar...', 'streaming');
+                    // updateStatus('Loading avatar...', 'streaming');
                     
                     // Clean up existing avatar if it exists
                     if (head) {
@@ -1591,7 +1591,7 @@ Frames Proc.  : ${data.framesProcessed ?? 'N/A'}`;
                         (ev) => {
                             if (ev.lengthComputable) {
                                 const percent = Math.round((ev.loaded / ev.total) * 100);
-                                updateStatus(`Loading avatar... ${percent}%`, 'streaming');
+                                // updateStatus(`Loading avatar... ${percent}%`, 'streaming');
                             }
                         }
                     );
@@ -1609,8 +1609,8 @@ Frames Proc.  : ${data.framesProcessed ?? 'N/A'}`;
                     document.getElementById('btn-load-avatar').disabled = false;
                     
                 } catch (error) {
-                    log(`Error loading avatar: ${error.message}`, 'error');
-                    updateStatus('Error loading avatar', 'error');
+                    // log(`Error loading avatar: ${error.message}`, 'error');
+                    // updateStatus('Error loading avatar', 'error');
                     
                     // Keep the Load/Reload Avatar button enabled so user can try again
                     document.getElementById('btn-load-avatar').disabled = false;

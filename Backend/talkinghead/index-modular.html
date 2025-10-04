@@ -331,11 +331,11 @@
 </head>
 
 <body class="theme-dark">
-
+<!-- 
   <div id="avatar-container">
     <div id="avatar"></div>
     <div id="loading">Initializing...</div>
-  </div>
+  </div> -->
 
   <div id="controls">
     <div id="chat-output"></div>
@@ -771,7 +771,7 @@
         // Make head available globally for debugging
         window.head = head;
 
-        updateLoadingStatus('Loading avatar...');
+        // updateLoadingStatus('Loading avatar...');
 
         // Get JWT token
         await jwtGet();
@@ -788,7 +788,7 @@
         }, (progress) => {
           if (progress.lengthComputable) {
             const percent = Math.round((progress.loaded / progress.total) * 100);
-            updateLoadingStatus(`Loading avatar... ${percent}%`);
+            // updateLoadingStatus(`Loading avatar... ${percent}%`);
           }
         });
 

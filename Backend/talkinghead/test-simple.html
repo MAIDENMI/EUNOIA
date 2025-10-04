@@ -160,8 +160,8 @@
       // Load and show the avatar
       const nodeLoading = document.getElementById('loading');
       try {
-        nodeLoading.textContent = "Loading avatar...";
-        addStatus('Loading 3D avatar model...', 'info');
+        // nodeLoading.textContent = "Loading avatar...";
+        // addStatus('Loading 3D avatar model...', 'info');
         
         await head.showAvatar({
           url: './avatars/brunette.glb',
@@ -182,7 +182,7 @@
       } catch (error) {
         console.error(error);
         nodeLoading.textContent = error.toString();
-        addStatus(`Error loading avatar: ${error.message}`, 'error');
+        // addStatus(`Error loading avatar: ${error.message}`, 'error');
       }
 
       // Speak when clicked
