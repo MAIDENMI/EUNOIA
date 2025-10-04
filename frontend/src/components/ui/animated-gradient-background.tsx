@@ -81,6 +81,13 @@ interface AnimatedGradientBackgroundProps {
     * @default false
     */
    isListening?: boolean;
+
+   /**
+    * The color theme to use when hovering over a card.
+    * Changes the gradient colors to match the hovered card.
+    * @default null
+    */
+   hoverColor?: "purple" | "blue" | "orange" | null;
 }
 
 /**
@@ -93,7 +100,7 @@ interface AnimatedGradientBackgroundProps {
  * @param {AnimatedGradientBackgroundProps} props - Props for configuring the gradient animation.
  * @returns JSX.Element
  */
-const AnimatedGradientBackground: React.FC<AnimatedGradientBackgroundProps> = ({
+const AnimatedGradientBackground: React.FC<AnimatedGradientBackgroundProps> = React.memo(({
    startingGap = 180,
    Breathing = true,
    gradientColors = [
@@ -115,6 +122,7 @@ const AnimatedGradientBackground: React.FC<AnimatedGradientBackgroundProps> = ({
    audioLevel = 0,
    audioSensitivity = 30,
    isListening = false,
+   hoverColor = null,
 }) => {
 
 
@@ -130,6 +138,57 @@ const AnimatedGradientBackground: React.FC<AnimatedGradientBackgroundProps> = ({
 
    const containerRef = useRef<HTMLDivElement | null>(null);
    const smoothedAudioLevelRef = useRef<number>(0);
+   const currentColorsRef = useRef<string[]>([
+      "#FFFFFF",
+      "#5E35B1",
+      "#3D5AFE",
+      "#2979FF",
+      "#00BCD4",
+      "#4FC3F7",
+      "#7C4DFF",
+      "transparent"
+   ]);
+
+   // Helper function to parse hex color to RGB
+   const hexToRgb = (hex: string): [number, number, number] => {
+      if (hex === "transparent") return [255, 255, 255];
+      const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+      return result
+         ? [parseInt(result[1], 16), parseInt(result[2], 16), parseInt(result[3], 16)]
+         : [255, 255, 255];
+   };
+
+   // Helper function to convert RGB back to hex
+   const rgbToHex = (r: number, g: number, b: number): string => {
+      return "#" + [r, g, b].map(x => {
+         const hex = Math.round(x).toString(16);
+         return hex.length === 1 ? "0" + hex : hex;
+      }).join("");
+   };
+
+   // Helper function to interpolate between two colors
+   const lerpColor = (color1: string, color2: string, factor: number): string => {
+      if (color1 === "transparent" && color2 === "transparent") return "transparent";
+      if (color2 === "transparent") {
+         // Fade current color toward transparency
+         const [r, g, b] = hexToRgb(color1);
+         return `rgba(${r}, ${g}, ${b}, ${1 - factor})`;
+      }
+      if (color1 === "transparent") {
+         // Fade in from transparency
+         const [r, g, b] = hexToRgb(color2);
+         return `rgba(${r}, ${g}, ${b}, ${factor})`;
+      }
+      
+      const [r1, g1, b1] = hexToRgb(color1);
+      const [r2, g2, b2] = hexToRgb(color2);
+      
+      const r = r1 + (r2 - r1) * factor;
+      const g = g1 + (g2 - g1) * factor;
+      const b = b1 + (b2 - b1) * factor;
+      
+      return rgbToHex(r, g, b);
+   };
 
    useEffect(() => {
       let animationFrame: number;
@@ -151,12 +210,46 @@ const AnimatedGradientBackground: React.FC<AnimatedGradientBackgroundProps> = ({
          const audioBoost = smoothedAudioLevelRef.current * audioSensitivity;
          const finalWidth = width + audioBoost;
 
-         // Dynamically adjust colors based on listening state and audio level
-         let dynamicColors: string[];
+         // Dynamically adjust colors based on hover state, listening state, and audio level
+         let targetColors: string[];
          
-         if (!isListening) {
+         // Priority 1: Check for hover state (overrides everything)
+         if (hoverColor === "purple") {
+            targetColors = [
+               "#FFFFFF",
+               "#9C27B0", // Purple
+               "#7B1FA2", // Deep purple
+               "#8E24AA", // Purple
+               "#AB47BC", // Light purple
+               "#BA68C8", // Lighter purple
+               "#CE93D8", // Soft purple
+               "transparent"
+            ];
+         } else if (hoverColor === "blue") {
+            targetColors = [
+               "#FFFFFF",
+               "#2196F3", // Blue
+               "#1976D2", // Dark blue
+               "#1E88E5", // Blue
+               "#42A5F5", // Light blue
+               "#64B5F6", // Lighter blue
+               "#90CAF9", // Soft blue
+               "transparent"
+            ];
+         } else if (hoverColor === "orange") {
+            targetColors = [
+               "#FFFFFF",
+               "#FF9800", // Orange
+               "#F57C00", // Dark orange
+               "#FB8C00", // Orange
+               "#FFA726", // Light orange
+               "#FFB74D", // Lighter orange
+               "#FFCC80", // Soft orange
+               "transparent"
+            ];
+         } else if (!isListening) {
             // Mic is off: Always show calm blue tones
-            dynamicColors = [
+            targetColors = [
                "#FFFFFF",
                "#5E35B1", // Deep purple
                "#3D5AFE", // Blue
@@ -176,7 +269,7 @@ const AnimatedGradientBackground: React.FC<AnimatedGradientBackgroundProps> = ({
             
             if (intensity < 0.5) {
                // Quiet: Blue and violet tones
-               dynamicColors = [
+               targetColors = [
                   "#FFFFFF",
                   "#5E35B1", // Deep purple
                   "#3D5AFE", // Blue
@@ -188,7 +281,7 @@ const AnimatedGradientBackground: React.FC<AnimatedGradientBackgroundProps> = ({
                ];
             } else if (intensity < 1.2) {
                // Medium: Mix of colors
-               dynamicColors = [
+               targetColors = [
                   "#FFFFFF",
                   "#9C27B0", // Purple
                   "#FF6B9D", // Pink
@@ -200,7 +293,7 @@ const AnimatedGradientBackground: React.FC<AnimatedGradientBackgroundProps> = ({
                ];
             } else {
                // Loud: Red and warm tones
-               dynamicColors = [
+               targetColors = [
                   "#FFFFFF",
                   "#FF1744", // Red
                   "#FF6D00", // Deep orange
@@ -213,8 +306,18 @@ const AnimatedGradientBackground: React.FC<AnimatedGradientBackgroundProps> = ({
             }
          }
 
+         // Smoothly interpolate current colors toward target colors
+         const colorSmoothingFactor = 0.08; // Lower = smoother but slower transitions
+         const smoothedColors = currentColorsRef.current.map((currentColor, index) => {
+            const targetColor = targetColors[index];
+            return lerpColor(currentColor, targetColor, colorSmoothingFactor);
+         });
+         
+         // Update current colors reference
+         currentColorsRef.current = smoothedColors;
+
          const gradientStopsString = gradientStops
-            .map((stop, index) => `${dynamicColors[index]} ${stop}%`)
+            .map((stop, index) => `${smoothedColors[index]} ${stop}%`)
             .join(", ");
 
          const gradient = `radial-gradient(${finalWidth}% ${finalWidth+topOffset}% at 50% 20%, ${gradientStopsString})`;
@@ -229,7 +332,7 @@ const AnimatedGradientBackground: React.FC<AnimatedGradientBackgroundProps> = ({
       animationFrame = requestAnimationFrame(animateGradient);
 
       return () => cancelAnimationFrame(animationFrame); // Cleanup animation
-   }, [startingGap, Breathing, gradientColors, gradientStops, animationSpeed, breathingRange, topOffset, audioLevel, audioSensitivity, isListening]);
+   }, [startingGap, Breathing, gradientColors, gradientStops, animationSpeed, breathingRange, topOffset, audioLevel, audioSensitivity, isListening, hoverColor]);
 
    return (
       <motion.div
@@ -255,7 +358,9 @@ const AnimatedGradientBackground: React.FC<AnimatedGradientBackgroundProps> = ({
          />
       </motion.div>
    );
-};
+});
+
+AnimatedGradientBackground.displayName = 'AnimatedGradientBackground';
 
 export default AnimatedGradientBackground;
 
