@@ -1,0 +1,963 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <title>Talking Head - Azure TTS Audio Streaming Example</title>
+  <style>
+    body,
+    html {
+      width: 100%;
+      height: 100%;
+      max-width: 800px;
+      margin: auto;
+      position: relative;
+      background-color: #202020;
+      color: white;
+      font-family: Arial, sans-serif;
+      overflow: auto;
+    }
+
+    /* The main 3D avatar container */
+    #avatar {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* Controls container at top */
+    #controls {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      position: absolute;
+      top: 20px;
+      left: 10px;
+      right: 10px;
+      height: 40px;
+    }
+
+    #text {
+      flex: 1;
+      font-size: 16px;
+      min-height: 40px;
+      height: auto;
+      padding: 5px;
+      box-sizing: border-box;
+      resize: none;
+      font-family: Arial, sans-serif;
+    }
+
+    #speak {
+      width: 100px;
+      height: 100%;
+      font-size: 16px;
+      cursor: pointer;
+    }
+
+    #interrupt {
+      width: 80px;
+      height: 100%;
+      font-size: 16px;
+      background: #ff9800;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      display: none;
+    }
+
+    #interrupt:hover {
+      background: #e68900;
+    }
+
+    /* Settings toggle button */
+    #settings-button {
+      width: 80px;
+      height: 100%;
+      font-size: 16px;
+      background: #333;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    #settings-button:hover {
+      background: #444;
+    }
+
+    /* Collapsible Settings Panel */
+    #settings-panel {
+      position: absolute;
+      top: 60px;
+      right: 10px;
+      width: 220px;
+      max-height: calc(100vh - 80px);
+      overflow-y: auto;
+      background-color: #333;
+      padding: 10px;
+      border-radius: 5px;
+      display: none;
+      /* hidden by default */
+      z-index: 998;
+    }
+
+    #settings-panel label {
+      display: block;
+      margin-top: 10px;
+      font-weight: bold;
+      font-size: 0.9rem;
+    }
+
+    #settings-panel input {
+      width: calc(100% - 10px);
+      padding: 5px;
+      margin-top: 5px;
+      font-size: 0.9rem;
+      box-sizing: border-box;
+    }
+
+    #settings-panel select {
+      width: 100%;
+      padding: 5px;
+      margin-top: 5px;
+      font-size: 0.9rem;
+      box-sizing: border-box;
+    }
+
+    #settings-panel input[type="range"] {
+      width: calc(70% - 10px);
+    }
+
+    #gain-value {
+      display: inline-block;
+      width: 25%;
+      text-align: center;
+      font-size: 0.9rem;
+      color: #ccc;
+    }
+
+    #settings-panel fieldset {
+      border: 1px solid #555;
+      border-radius: 4px;
+      margin-top: 10px;
+      padding: 8px;
+    }
+
+    #settings-panel legend {
+      font-size: 0.8rem;
+      font-weight: bold;
+      color: #ccc;
+      padding: 0 5px;
+    }
+
+    .session-button {
+      width: 100%;
+      height: 32px;
+      font-size: 14px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-top: 10px;
+      transition: transform 0.1s ease, box-shadow 0.1s ease;
+    }
+
+    .session-button:active {
+      transform: scale(0.98);
+      box-shadow: 3px 2px 22px rgba(0, 0, 0, 0.24);
+    }
+
+    #start-session {
+      background: #4caf50;
+      color: #fff;
+    }
+
+    #start-session:hover {
+      background: #45a049;
+    }
+
+    #stop-session {
+      background: #f44336;
+      color: #fff;
+      display: none;
+    }
+
+    #stop-session:hover {
+      background: #da190b;
+    }
+
+    #lipsync-type input[type="radio"]:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    #lipsync-type input[type="radio"]:disabled:checked {
+      opacity: 1;
+    }
+
+    #lipsync-type label:has(input:disabled) {
+      opacity: 0.7;
+      cursor: not-allowed;
+    }
+
+    #lipsync-type label:has(input:disabled:checked) {
+      opacity: 1;
+    }
+
+    /* When the body gets a class "show-settings", show the panel */
+    body.show-settings #settings-panel {
+      display: block;
+    }
+
+    /* Loading text at bottom-left */
+    #loading {
+      display: block;
+      position: absolute;
+      bottom: 10px;
+      left: 10px;
+      right: 10px;
+      height: 40px;
+      font-size: 20px;
+    }
+
+    #subtitles {
+      position: absolute;
+      bottom: 50px;
+      left: 10%;
+      right: 10%;
+      text-align: center;
+      font-size: 1.2em;
+      color: #ffffff;
+      text-shadow: 1px 1px 4px rgba(0, 0, 0, 0.7);
+      pointer-events: none;
+      z-index: 1000;
+      padding: 5px 10px;
+      border-radius: 5px;
+      background: rgba(0, 0, 0, 0.3);
+      display: none;
+    }
+
+    #lipsync-type {
+      text-align: left;
+    }
+
+    #lipsync-type label {
+      display: inline-flex;
+      align-items: center;
+      margin-right: 1rem;
+    }
+
+    #lipsync-type label input[type="radio"] {
+      display: inline-block !important;
+      width: auto !important;
+      margin-right: 0.3rem;
+    }
+
+    #wait-for-chunks label,
+    #metrics-config label {
+      display: flex;
+      align-items: center;
+      text-align: left;
+    }
+
+    #wait-for-chunks label input[type="checkbox"],
+    #metrics-config label input[type="checkbox"] {
+      width: auto !important;
+      margin-right: 0.5rem;
+      margin-top: 0;
+    }
+
+    /* Small performance HUD */
+    #perfHud {
+      position: absolute;
+      top: 90px;
+      left: 10px;
+      background: rgba(0, 0, 0, 0.5);
+      color: #0f0;
+      font-family: ui-monospace, Menlo, Consolas, monospace;
+      font-size: 12px;
+      padding: 6px 8px;
+      border-radius: 4px;
+      white-space: pre;
+      z-index: 999;
+      min-width: 180px;
+      display: none;
+    }
+  </style>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js/+esm",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/",
+        "talkinghead": "../modules/talkinghead.mjs"
+      }
+    }
+  </script>
+
+  <script
+    src="https://cdn.jsdelivr.net/npm/microsoft-cognitiveservices-speech-sdk@latest/distrib/browser/microsoft.cognitiveservices.speech.sdk.bundle-min.js"></script>
+
+  <script type="module">
+    import { TalkingHead } from "talkinghead";
+
+    const visemeMap = [
+      /* 0  */ "sil",            // Silence
+      /* 1  */ "aa",             // æ, ə, ʌ
+      /* 2  */ "aa",             // ɑ
+      /* 3  */ "O",              // ɔ
+      /* 4  */ "E",              // ɛ, ʊ
+      /* 5  */ "RR",              // ɝ
+      /* 6  */ "I",              // j, i, ɪ
+      /* 7  */ "U",              // w, u
+      /* 8  */ "O",              // o
+      /* 9  */ "O",             // aʊ
+      /* 10 */ "O",              // ɔɪ
+      /* 11 */ "I",              // aɪ
+      /* 12 */ "kk",             // h
+      /* 13 */ "RR",             // ɹ
+      /* 14 */ "nn",             // l
+      /* 15 */ "SS",             // s, z
+      /* 16 */ "CH",             // ʃ, tʃ, dʒ, ʒ
+      /* 17 */ "TH",             // ð
+      /* 18 */ "FF",             // f, v
+      /* 19 */ "DD",             // d, t, n, θ
+      /* 20 */ "kk",             // k, g, ŋ
+      /* 21 */ "PP"              // p, b, m
+    ];
+
+    const AzureBlendshapeMap = [
+      /* 0  */ "eyeBlinkLeft",
+      /* 1  */ "eyeLookDownLeft",
+      /* 2  */ "eyeLookInLeft",
+      /* 3  */ "eyeLookOutLeft",
+      /* 4  */ "eyeLookUpLeft",
+      /* 5  */ "eyeSquintLeft",
+      /* 6  */ "eyeWideLeft",
+      /* 7  */ "eyeBlinkRight",
+      /* 8  */ "eyeLookDownRight",
+      /* 9  */ "eyeLookInRight",
+      /* 10 */ "eyeLookOutRight",
+      /* 11 */ "eyeLookUpRight",
+      /* 12 */ "eyeSquintRight",
+      /* 13 */ "eyeWideRight",
+      /* 14 */ "jawForward",
+      /* 15 */ "jawLeft",
+      /* 16 */ "jawRight",
+      /* 17 */ "jawOpen",
+      /* 18 */ "mouthClose",
+      /* 19 */ "mouthFunnel",
+      /* 20 */ "mouthPucker",
+      /* 21 */ "mouthLeft",
+      /* 22 */ "mouthRight",
+      /* 23 */ "mouthSmileLeft",
+      /* 24 */ "mouthSmileRight",
+      /* 25 */ "mouthFrownLeft",
+      /* 26 */ "mouthFrownRight",
+      /* 27 */ "mouthDimpleLeft",
+      /* 28 */ "mouthDimpleRight",
+      /* 29 */ "mouthStretchLeft",
+      /* 30 */ "mouthStretchRight",
+      /* 31 */ "mouthRollLower",
+      /* 32 */ "mouthRollUpper",
+      /* 33 */ "mouthShrugLower",
+      /* 34 */ "mouthShrugUpper",
+      /* 35 */ "mouthPressLeft",
+      /* 36 */ "mouthPressRight",
+      /* 37 */ "mouthLowerDownLeft",
+      /* 38 */ "mouthLowerDownRight",
+      /* 39 */ "mouthUpperUpLeft",
+      /* 40 */ "mouthUpperUpRight",
+      /* 41 */ "browDownLeft",
+      /* 42 */ "browDownRight",
+      /* 43 */ "browInnerUp",
+      /* 44 */ "browOuterUpLeft",
+      /* 45 */ "browOuterUpRight",
+      /* 46 */ "cheekPuff",
+      /* 47 */ "cheekSquintLeft",
+      /* 48 */ "cheekSquintRight",
+      /* 49 */ "noseSneerLeft",
+      /* 50 */ "noseSneerRight",
+      /* 51 */ "tongueOut",
+      /* 52 */ "headRotateZ",
+      /* 53 */ // "leftEyeRoll", // Not supported
+      /* 54 */ // "rightEyeRoll" // Not supported
+    ];
+    let head;
+    let microsoftSynthesizer = null;
+
+    function resetLipsyncBuffers() {
+      visemesbuffer = {
+        visemes: [],
+        vtimes: [],
+        vdurations: [],
+      };
+      prevViseme = null;
+      wordsbuffer = {
+        words: [],
+        wtimes: [],
+        wdurations: []
+      };
+      azureBlendShapes = {
+        frames: [],
+        sbuffer: [],
+        orderBuffer: {}
+      };
+
+    }
+
+    let visemesbuffer = null;
+    let prevViseme = null;
+    let wordsbuffer = null;
+    let azureBlendShapes = null;
+    let lipsyncType = "visemes";
+
+    // Track last applied configuration
+    let lastAppliedConfig = {
+      lipsyncType: "visemes",
+      sampleRate: 48000,
+      gain: 0.5,
+      mood: "happy",
+      lipsyncLang: "en",
+      waitForAudioChunks: true,
+      enableMetrics: true,
+      metricsInterval: 2
+    };
+
+    resetLipsyncBuffers();
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      console.log("Loading Talking Head...");
+      const nodeAvatar = document.getElementById('avatar');
+      const nodeStartSession = document.getElementById('start-session');
+      const nodeStopSession = document.getElementById('stop-session');
+      const nodeSpeak = document.getElementById('speak');
+      const nodeInterrupt = document.getElementById('interrupt');
+      const nodeLoading = document.getElementById('loading');
+      const azureRegion = document.getElementById('azure-region');
+      const azureTTSKey = document.getElementById('azure-key');
+      const settingsButton = document.getElementById('settings-button');
+      const perfHud = document.getElementById('perfHud');
+      const perf = { queuedMs: 0, maxQueuedMs: 0, underruns: 0, state: 'idle' };
+      function updateHUD() {
+        const enableMetrics = document.getElementById('enable-metrics').checked;
+        if (!enableMetrics) {
+          perfHud.style.display = 'none';
+          return;
+        }
+        
+        perfHud.textContent =
+          `Audio worklet\n` +
+          `state: ${perf.state}\n` +
+          `queued: ${perf.queuedMs | 0} ms (max ${perf.maxQueuedMs | 0} ms)\n` +
+          `underruns: ${perf.underruns}`;
+        if (perf.state !== 'idle' || perf.maxQueuedMs > 0 || perf.underruns > 0) {
+          perfHud.style.display = 'block';
+        }
+      }
+
+      azureTTSKey.value = sessionStorage.getItem('azureTTSKey') || '';
+      azureRegion.value = sessionStorage.getItem('azureRegion') || '';
+      [azureTTSKey, azureRegion].forEach(el => {
+        el.addEventListener('input', () =>
+          sessionStorage.setItem(el.id === 'azure-key' ? 'azureTTSKey' : 'azureRegion', el.value.trim())
+        );
+      });
+
+      // Handle gain slider updates
+      const gainSlider = document.getElementById('gain');
+      const gainValue = document.getElementById('gain-value');
+      gainSlider.addEventListener('input', () => {
+        gainValue.textContent = gainSlider.value;
+        checkConfigChanges();
+      });
+
+      // Check if current UI values match last applied config
+      function checkConfigChanges() {
+        const currentConfig = getCurrentConfig();
+        const hasChanges = JSON.stringify(currentConfig) !== JSON.stringify(lastAppliedConfig);
+        
+        const isSessionRunning = head?.isStreaming;
+        nodeStartSession.disabled = isSessionRunning && !hasChanges;
+        
+        if (isSessionRunning && hasChanges) {
+          settingsButton.textContent = 'Settings *';
+          settingsButton.style.color = '#ff6b6b';
+        } else {
+          settingsButton.textContent = 'Settings';
+          settingsButton.style.color = '';
+        }
+      }
+
+      function getCurrentConfig() {
+        return {
+          lipsyncType: document.querySelector('input[name="lipsync_type"]:checked').value,
+          sampleRate: parseInt(document.getElementById('sample-rate').value),
+          gain: parseFloat(document.getElementById('gain').value),
+          mood: document.getElementById('mood').value,
+          lipsyncLang: document.getElementById('lipsync-language').value,
+          waitForAudioChunks: document.getElementById('wait-for-audio-chunks').checked,
+          enableMetrics: document.getElementById('enable-metrics').checked,
+          metricsInterval: parseInt(document.getElementById('metrics-interval').value)
+        };
+      }
+
+      // Add change listeners to all settings
+      ['sample-rate', 'mood', 'lipsync-language', 'wait-for-audio-chunks', 'enable-metrics', 'metrics-interval'].forEach(id => {
+        document.getElementById(id).addEventListener('change', checkConfigChanges);
+      });
+      document.querySelectorAll('input[name="lipsync_type"]').forEach(radio => {
+        radio.addEventListener('change', checkConfigChanges);
+      });
+      // Add input listener for gain slider
+      document.getElementById('gain').addEventListener('input', checkConfigChanges);
+
+      // Initialize the change indicator
+      checkConfigChanges();
+
+      // Initialize TalkingHead
+      head = new TalkingHead(nodeAvatar, {
+        ttsEndpoint: "/gtts/",
+        cameraView: "upper",
+        lipsyncLang: "en"
+      });
+
+      // Show "Loading..." by default
+      nodeLoading.textContent = "Loading...";
+
+      // Load the avatar
+      try {
+        await head.showAvatar(
+          {
+            url: 'https://models.readyplayer.me/64bfa15f0e72c63d7c3934a6.glb?morphTargets=ARKit,Oculus+Visemes,mouthOpen,mouthSmile,eyesClosed,eyesLookUp,eyesLookDown&textureSizeLimit=1024&textureFormat=png',
+            body: 'F',
+          },
+          (ev) => {
+            if (ev.lengthComputable) {
+              const percent = Math.round((ev.loaded / ev.total) * 100);
+              nodeLoading.textContent = `Loading ${percent}%`;
+            } else {
+              nodeLoading.textContent = `Loading... ${Math.round(ev.loaded / 1024)} KB`;
+            }
+          }
+        );
+        // Hide the loading element once fully loaded
+        nodeLoading.style.display = 'none';
+      } catch (error) {
+        console.error("Error loading avatar:", error);
+        nodeLoading.textContent = "Failed to load avatar.";
+      }
+
+      // Handle start session button click
+      nodeStartSession.addEventListener('click', () => {
+        startStreamingSession();
+      });
+
+      // Handle stop session button click  
+      nodeStopSession.addEventListener('click', () => {
+        stopStreamingSession();
+      });
+
+      // Function to start streaming session
+      function startStreamingSession() {
+        // Get and save the current settings from the UI
+        const config = getCurrentConfig();
+        lastAppliedConfig = { ...config };
+        lipsyncType = config.lipsyncType;
+        
+        head.streamStart(
+          {
+            sampleRate: config.sampleRate,
+            mood: config.mood,
+            gain: config.gain,
+            lipsyncType: config.lipsyncType,
+            lipsyncLang: config.lipsyncLang,
+            waitForAudioChunks: config.waitForAudioChunks,
+            // Configure metrics: enabled/disabled and reporting rate
+            metrics: config.enableMetrics ? { enabled: true, intervalHz: config.metricsInterval } : { enabled: false }
+          },
+          () => {
+            console.log("Audio playback started.");
+            const subtitlesElement = document.getElementById("subtitles");
+            subtitlesElement.textContent = "";
+            subtitlesElement.style.display = "none";
+            perf.state = 'playing';
+            updateHUD();
+            nodeInterrupt.style.display = 'block';
+            nodeSpeak.disabled = true;
+          },
+          () => {
+            console.log("Audio playback ended.");
+            const subtitlesElement = document.getElementById("subtitles");
+            const displayDuration = Math.max(2000, subtitlesElement.textContent.length * 50);
+            setTimeout(() => {
+              subtitlesElement.textContent = "";
+              subtitlesElement.style.display = "none";
+            }, displayDuration);
+            // Keep HUD visible, switch to idle state showing last metrics
+            perf.state = 'idle';
+            updateHUD();
+            nodeInterrupt.style.display = 'none';
+            nodeSpeak.disabled = false;
+          },
+          (subtitleText) => {
+            console.log("subtitleText: ", subtitleText);
+            const subtitlesElement = document.getElementById("subtitles");
+            subtitlesElement.textContent += subtitleText;
+            subtitlesElement.style.display = subtitlesElement.textContent ? "block" : "none";
+          },
+          // onMetrics
+          (ev) => {
+            if (!ev) return;
+            if (ev.type === 'metrics' && ev.data) {
+              const m = ev.data;
+              perf.queuedMs = m.queuedMs;
+              perf.maxQueuedMs = m.maxQueuedMs;
+              perf.underruns = m.underrunBlocks;
+              perf.state = (m.state === 1) ? 'playing' : 'idle';
+              // Only update HUD if metrics are enabled
+              const enableMetrics = document.getElementById('enable-metrics').checked;
+              if (enableMetrics) {
+                updateHUD();
+              }
+            }
+          }
+        );
+        
+        nodeStopSession.style.display = 'block';
+        nodeSpeak.disabled = false;
+        nodeSpeak.title = ""; // Clear the tooltip when enabled
+        nodeStartSession.textContent = 'Update session';
+        checkConfigChanges();
+        console.log("Streaming session started/updated.");
+      }
+
+      // Function to stop streaming session
+      function stopStreamingSession() {
+        if (head.streamStop) {
+          head.streamStop();
+        }
+        
+        // Update button visibility - hide stop button and disable speak button
+        nodeStopSession.style.display = 'none';
+        nodeSpeak.disabled = true;
+        nodeSpeak.title = "Start a streaming session to enable speech"; // Restore tooltip when disabled
+        nodeInterrupt.style.display = 'none';
+        
+        // Update button label back to start session
+        nodeStartSession.textContent = 'Start session';
+        
+        // Update button state after stopping session
+        checkConfigChanges();
+                
+        // Reset performance state and hide HUD
+        perf.state = 'idle';
+        perf.queuedMs = 0;
+        perf.maxQueuedMs = 0;
+        perf.underruns = 0;
+        perfHud.style.display = 'none';
+        
+        console.log("Streaming session stopped.");
+      }
+
+      // Handle speech button click
+      nodeSpeak.addEventListener('click', () => {
+        const text = document.getElementById('text').value.trim();
+        if (text) {
+          const ssml = textToSSML(text);
+          azureSpeak(ssml);
+        }
+      });
+
+      // Handle interrupt button click
+      nodeInterrupt.addEventListener('click', () => {
+        if (head.isStreaming) {
+          head.streamInterrupt();
+          nodeInterrupt.style.display = 'none';
+          nodeSpeak.disabled = false;
+          console.log("Streaming interrupted by user.");
+        }
+      });
+
+      // Pause/resume animation on visibility change
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") {
+          head.start();
+        } else {
+          head.stop();
+        }
+      });
+
+      // Convert input text to SSML
+      function textToSSML(text) {
+        return `
+          <speak version="1.0" xmlns:mstts="http://www.w3.org/2001/mstts" xml:lang="en-US">
+            <voice name="en-US-EmmaNeural">
+              <mstts:viseme type="FacialExpression" />
+              ${text
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')}
+            </voice>
+          </speak>`;
+      }
+
+      // Perform Azure TTS
+      function azureSpeak(ssml) {
+        if (!microsoftSynthesizer) {
+          // Retrieve config from input fields
+          const regionValue = azureRegion.value.trim();
+          const keyValue = azureTTSKey.value.trim();
+          if (!regionValue || !keyValue) {
+            console.error("Azure TTS region/key missing!");
+            alert("Please enter your Azure TTS key and region in the settings panel.");
+            return;
+          }
+
+          const config = window.SpeechSDK.SpeechConfig.fromSubscription(keyValue, regionValue);
+          config.speechSynthesisOutputFormat =
+            window.SpeechSDK.SpeechSynthesisOutputFormat.Raw48Khz16BitMonoPcm;
+          microsoftSynthesizer = new window.SpeechSDK.SpeechSynthesizer(config, null);
+
+          // Handle the synthesis results
+          microsoftSynthesizer.synthesizing = (s, e) => {
+
+            switch (lastAppliedConfig.lipsyncType) {
+              case "blendshapes":
+                head.streamAudio({
+                  audio: e.result.audioData,
+                  anims: azureBlendShapes?.sbuffer.splice(0, azureBlendShapes?.sbuffer.length)
+                });
+                break;
+              case "visemes":
+                head.streamAudio({
+                  audio: e.result.audioData,
+                  visemes: visemesbuffer.visemes.splice(0, visemesbuffer.visemes.length),
+                  vtimes: visemesbuffer.vtimes.splice(0, visemesbuffer.vtimes.length),
+                  vdurations: visemesbuffer.vdurations.splice(0, visemesbuffer.vdurations.length),
+                });
+                break;
+              case "words":
+                head.streamAudio({
+                  audio: e.result.audioData,
+                  words: wordsbuffer.words.splice(0, wordsbuffer.words.length),
+                  wtimes: wordsbuffer.wtimes.splice(0, wordsbuffer.wtimes.length),
+                  wdurations: wordsbuffer.wdurations.splice(0, wordsbuffer.wdurations.length)
+                });
+                break;
+              default:
+                console.error(`Unknown animation mode: ${lastAppliedConfig.lipsyncType}`);
+            }
+          };
+
+          // Viseme handling
+          microsoftSynthesizer.visemeReceived = (s, e) => {
+            if (lastAppliedConfig.lipsyncType === "visemes") {
+              const vtime = e.audioOffset / 10000;
+              const viseme = visemeMap[e.visemeId];
+              if (!head.isStreaming) return;
+              if (prevViseme) {
+                let vduration = vtime - prevViseme.vtime;
+                if (vduration < 40) vduration = 40;
+                visemesbuffer.visemes.push(prevViseme.viseme);
+                visemesbuffer.vtimes.push(prevViseme.vtime);
+                visemesbuffer.vdurations.push(vduration);
+              }
+              prevViseme = { viseme, vtime };
+
+            } else if (lastAppliedConfig.lipsyncType === "blendshapes") {
+              let animation = null;
+              if (e?.animation && e.animation.trim() !== "") {
+                try {
+                  animation = JSON.parse(e.animation);
+                } catch (error) {
+                  console.error("Error parsing animation blendshapes:", error);
+                  return;
+                }
+              }
+              if (!animation) return;
+              const vs = {};
+              AzureBlendshapeMap.forEach((mtName, i) => {
+                vs[mtName] = animation.BlendShapes.map(frame => frame[i]);
+              });
+
+              azureBlendShapes.sbuffer.push({
+                name: "blendshapes",
+                delay: animation.FrameIndex * 1000 / 60,
+                dt: Array.from({ length: animation.BlendShapes.length }, () => 1000 / 60),
+                vs: vs,
+              });
+            }
+          };
+
+          // Process word boundaries and punctuations
+          microsoftSynthesizer.wordBoundary = function (s, e) {
+            const word = e.text;
+            const time = e.audioOffset / 10000;
+            const duration = e.duration / 10000;
+
+            if (e.boundaryType === "PunctuationBoundary" && wordsbuffer.words.length) {
+              wordsbuffer.words[wordsbuffer.words.length - 1] += word;
+              wordsbuffer.wdurations[wordsbuffer.wdurations.length - 1] += duration;
+            } else if (e.boundaryType === "WordBoundary" || e.boundaryType === "PunctuationBoundary") {
+              wordsbuffer.words.push(word);
+              wordsbuffer.wtimes.push(time);
+              wordsbuffer.wdurations.push(duration);
+            }
+          };
+        }
+
+        // Perform TTS
+        microsoftSynthesizer.speakSsmlAsync(
+          ssml,
+          (result) => {
+            if (result.reason === window.SpeechSDK.ResultReason.SynthesizingAudioCompleted) {
+              if (lastAppliedConfig.lipsyncType === "visemes" && prevViseme) {
+                // Final viseme duration guess
+                const finalDuration = 100;
+                // Add to visemesbuffer
+                visemesbuffer.visemes.push(prevViseme.viseme);
+                visemesbuffer.vtimes.push(prevViseme.vtime);
+                visemesbuffer.vdurations.push(finalDuration);
+                // Now clear the last viseme
+                prevViseme = null;
+              }
+              let speak = {};
+              // stream any remaining visemes, blendshapes, or words
+              if (lastAppliedConfig.lipsyncType === "visemes" && visemesbuffer.visemes.length) {
+                speak.visemes = visemesbuffer.visemes.splice(0, visemesbuffer.visemes.length);
+                speak.vtimes = visemesbuffer.vtimes.splice(0, visemesbuffer.vtimes.length);
+                speak.vdurations = visemesbuffer.vdurations.splice(0, visemesbuffer.vdurations.length);
+              }
+              if (lastAppliedConfig.lipsyncType === "blendshapes") {
+                speak.anims = azureBlendShapes?.sbuffer.splice(0, azureBlendShapes?.sbuffer.length);
+              }
+
+              // stream words always for subtitles
+              speak.words = wordsbuffer.words.splice(0, wordsbuffer.words.length);
+              speak.wtimes = wordsbuffer.wtimes.splice(0, wordsbuffer.wtimes.length);
+              speak.wdurations = wordsbuffer.wdurations.splice(0, wordsbuffer.wdurations.length);
+
+              if (speak.visemes || speak.words || speak.anims) {
+                // If we have any visemes, words, or blendshapes left, stream them
+                speak.audio = new ArrayBuffer(0);
+                head.streamAudio(speak);
+              }
+
+              head.streamNotifyEnd();
+              resetLipsyncBuffers();
+              console.log("Speech synthesis completed.");
+            }
+          },
+          (error) => {
+            console.error("Azure speech synthesis error:", error);
+            resetLipsyncBuffers();
+          }
+        );
+      }
+
+      // Toggle the settings panel on/off
+      settingsButton.addEventListener('click', () => {
+        document.body.classList.toggle('show-settings');
+      });
+    });
+  </script>
+</head>
+
+<body>
+  <!-- 3D Avatar -->
+  <div id="avatar"></div>
+  <div id="subtitles"></div>
+  <div id="perfHud"></div>
+
+  <!-- Controls at the top -->
+  <div id="controls">
+    <textarea id="text" placeholder="Enter text to speak..." rows="3">Hello, how are you?</textarea>
+    <button id="speak" disabled title="Start a streaming session to enable speech">Speak</button>
+    <button id="interrupt">Interrupt</button>
+    <button id="settings-button">Settings</button>
+  </div>
+
+  <!-- Collapsible Settings Panel -->
+  <div id="settings-panel">
+    <label for="azure-key">Azure Key</label>
+    <input id="azure-key" type="text" aria-label="Azure key" placeholder="Enter Azure Key">
+
+    <label for="azure-region">Azure Region</label>
+    <input id="azure-region" type="text" aria-label="Azure region" placeholder="Enter Azure Region">
+    <hr style="border: 1px solid #555; margin-top: 1rem;">
+    <h4 style="margin-top: 1rem; text-align: center;">Stream Settings</h4>
+
+    <fieldset id="sample-rate-fieldset">
+      <legend>Sample Rate</legend>
+      <input id="sample-rate" type="number" min="8000" max="96000" step="1000" value="48000" aria-label="Sample rate">
+    </fieldset>
+
+    <fieldset id="gain-fieldset">
+      <legend>Audio Gain</legend>
+      <input id="gain" type="range" min="0" max="2" step="0.1" value="0.5" aria-label="Audio gain">
+      <span id="gain-value">0.5</span>
+    </fieldset>
+
+    <fieldset id="mood-selection">
+      <legend>Avatar Mood</legend>
+      <select id="mood" aria-label="Avatar mood">
+        <option value="neutral">Neutral</option>
+        <option value="happy" selected>Happy</option>
+        <option value="angry">Angry</option>
+        <option value="sad">Sad</option>
+        <option value="sleep">Sleep</option>
+      </select>
+    </fieldset>
+    
+    <fieldset id="lipsync-lang">
+      <legend>Lipsync Language</legend>
+      <select id="lipsync-language" aria-label="Lipsync language">
+        <option value="en" selected>English (en)</option>
+        <option value="fi">Finnish (fi)</option>
+        <option value="lt">Lithuanian (lt)</option>
+      </select>
+    </fieldset>
+    
+    <fieldset id="wait-for-chunks">
+      <legend>Lip-sync audio sync</legend>
+      <label>
+        <input type="checkbox" id="wait-for-audio-chunks" checked>
+        Wait for audio chunks
+      </label>
+    </fieldset>
+    
+    <fieldset id="metrics-config">
+      <legend>Performance Metrics</legend>
+      <label>
+        <input type="checkbox" id="enable-metrics" checked>
+        Enable metrics
+      </label>
+      <label for="metrics-interval">Update interval (Hz)</label>
+      <input id="metrics-interval" type="number" min="1" max="10" step="1" value="2" aria-label="Metrics update interval">
+    </fieldset>
+    
+    <fieldset id="lipsync-type">
+      <legend>Lip-sync Data Type</legend>
+      <label>
+        <input type="radio" name="lipsync_type" value="visemes" checked>
+        Visemes
+      </label>
+      <label>
+        <input type="radio" name="lipsync_type" value="words">
+        Words
+      </label>
+      <label>
+        <input type="radio" name="lipsync_type" value="blendshapes">
+        Blend shapes
+      </label>
+    </fieldset>
+    <button id="start-session" class="session-button">Start session</button>
+    <button id="stop-session" class="session-button">Stop session</button>
+  </div>
+
+  <!-- Loading or error display -->
+  <div id="loading"></div>
+</body>
+
+</html>

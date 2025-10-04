@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Talking Head - embed example</title>
+
+  <style>
+    body, html { width:100%; height:100%; margin: 0; position: relative; background-color: #202020; color: white; }
+    #avatar { display: block; width:100%; height:100%; }
+    #hamburger { position: absolute; top: 10px; right: 10px; cursor: pointer; z-index: 10; }
+    #controls { display: none; position: absolute; top: 50px; left: 10px; right: 10px; background: rgba(0,0,0,0.7); padding: 10px; border-radius: 5px; }
+    #text { width: Calc(100% - 110px); font-family: Arial; font-size: 20px; }
+    #speak { width: 100px; font-family: Arial; font-size: 20px; }
+    #loading { position: absolute; bottom: 10px; left: 10px; right: 10px; font-family: Arial; font-size: 20px; color: white; }
+  </style>
+
+  <script type="importmap">
+  { "imports":
+    {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js/+esm",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/",
+      "talkinghead": "./modules/talkinghead.mjs"
+    }
+  }
+  </script>
+
+  <script type="module">
+    import { TalkingHead } from "talkinghead";
+
+    let head;
+
+    document.addEventListener('DOMContentLoaded', async function(e) {
+
+      // Instantiate the class
+      const nodeAvatar = document.getElementById('avatar');
+      head = new TalkingHead( nodeAvatar, {
+        ttsEndpoint: "https://eu-texttospeech.googleapis.com/v1beta1/text:synthesize",
+        ttsApikey: "put-your-own-Google-TTS-API-key-here", // <- Change this
+        lipsyncModules: ["en", "fi"],
+        cameraView: "upper"
+      });
+
+      // Load and show the avatar
+      const nodeLoading = document.getElementById('loading');
+      try {
+        nodeLoading.textContent = "Loading...";
+        await head.showAvatar( {
+          url: './avatars/brunette.glb',
+          body: 'F',
+          avatarMood: 'neutral',
+          ttsLang: "en-GB",
+          ttsVoice: "en-GB-Standard-A",
+          lipsyncLang: 'en'
+        }, (ev) => {
+          if ( ev.lengthComputable ) {
+            let val = Math.min(100,Math.round(ev.loaded/ev.total * 100 ));
+            nodeLoading.textContent = "Loading " + val + "%";
+          }
+        });
+        nodeLoading.style.display = 'none';
+      } catch (error) {
+        console.log(error);
+        nodeLoading.textContent = error.toString();
+      }
+
+      // Speak when clicked
+      const nodeSpeak = document.getElementById('speak');
+      nodeSpeak.addEventListener('click', function () {
+        try {
+          const text = document.getElementById('text').value;
+          if ( text ) {
+            head.speakText( text );
+          }
+        } catch (error) {
+          console.log(error);
+        }
+      });
+
+      // Hamburger toggle
+      const hamburger = document.getElementById('hamburger');
+      const controls = document.getElementById('controls');
+      hamburger.addEventListener('click', () => {
+        controls.style.display = controls.style.display === 'block' ? 'none' : 'block';
+      });
+
+      // Pause animation when document is not visible
+      document.addEventListener("visibilitychange", async function (ev) {
+        if (document.visibilityState === "visible") {
+          head.start();
+        } else {
+          head.stop();
+        }
+      });
+
+    });
+  </script>
+</head>
+
+<body>
+  <div id="avatar"></div>
+  <div id="hamburger">
+    <svg viewBox="0 0 24 24" width="24" height="24" xmlns="http://www.w3.org/2000/svg">
+      <path d="M2 6C2 5.44772 2.44772 5 3 5H21C21.5523 5 22 5.44772 22 6C22 6.55228 21.5523 7 21 7H3C2.44772 7 2 6.55228 2 6Z" fill="white" />
+      <path d="M2 12C2 11.4477 2.44772 11 3 11H21C21.5523 11 22 11.4477 22 12C22 12.5523 21.5523 13 21 13H3C2.44772 13 2 12.5523 2 12Z" fill="white" />
+      <path d="M3 18C2.44772 18 2 18.4477 2 19C2 19.5523 2.44772 20 3 20H21C21.5523 20 22 19.5523 22 19C22 18.4477 21.5523 18 21 18H3Z" fill="white" />
+    </svg>
+  </div>
+  <div id="controls">
+    <input id="text" type="text" value="Hi there. How are you? I'm fine.">
+    <input id="speak" type="button" value="Speak">
+  </div>
+  <div id="loading"></div>
+</body>
+
+</html>

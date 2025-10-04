@@ -15,9 +15,18 @@ import {
   PhoneOff, 
   MoreVertical,
   Subtitles,
-  ArrowLeft
+  Menu,
+  ChevronDown,
+  ArrowUp,
+  Square
 } from "lucide-react";
-import Link from "next/link";
+import {
+  PromptInput,
+  PromptInputAction,
+  PromptInputActions,
+  PromptInputTextarea,
+} from "@/components/prompt-kit/prompt-input";
+import { Button } from "@/components/ui/button";
 
 export default function CallPage() {
   const [isListening, setIsListening] = useState(false);
@@ -28,22 +37,24 @@ export default function CallPage() {
   const [isVideoOn, setIsVideoOn] = useState(true);
   const [isCaptionsOn, setIsCaptionsOn] = useState(true);
   const [callTime, setCallTime] = useState(0);
-  
-  // Voice interaction state
-  const [isRecording, setIsRecording] = useState(false);
-  const [transcript, setTranscript] = useState("");
-  const [aiResponse, setAiResponse] = useState("");
-  const [isProcessing, setIsProcessing] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [googleKey, setGoogleKey] = useState<string>("");
+  const [elevenKey, setElevenKey] = useState<string>("");
+  const [voiceProvider, setVoiceProvider] = useState<"google" | "eleven">("google");
+  const [chatInput, setChatInput] = useState("");
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const [messages, setMessages] = useState<Array<{role: string, content: string}>>([]);
+  const [transcript, setTranscript] = useState<string>("");
+  const [aiResponse, setAiResponse] = useState<string>("");
+  const [isRecording, setIsRecording] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [messages, setMessages] = useState<Array<{ role: string; content: string }>>([]);
   const [permissionError, setPermissionError] = useState<string | null>(null);
   const [showPermissionHelp, setShowPermissionHelp] = useState(false);
-  
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const talkingHeadRef = useRef<HTMLIFrameElement>(null);
   const recognitionRef = useRef<any>(null);
-  const userId = useRef(`user_${Date.now()}`);
+  const talkingHeadRef = useRef<HTMLIFrameElement>(null);
+  const userId = useRef<string>(`user_${Date.now()}`);
   
   const x = useMotionValue(0);
   const y = useMotionValue(0);
@@ -235,6 +246,69 @@ export default function CallPage() {
     return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
   };
 
+  // Load saved settings
+  useEffect(() => {
+    try {
+      const g = sessionStorage.getItem("google-tts-apikey") || "";
+      const e = sessionStorage.getItem("elevenlabs-apikey") || "";
+      setGoogleKey(g);
+      setElevenKey(e);
+      const provider = (sessionStorage.getItem("voice-provider") as "google" | "eleven") || "google";
+      setVoiceProvider(provider);
+    } catch {}
+  }, []);
+
+  const postToIframe = (type: string, payload?: any) => {
+    try {
+      const target = talkingHeadRef.current?.contentWindow;
+      if (!target) return;
+      target.postMessage({ type, payload }, "http://localhost:8080");
+    } catch {}
+  };
+
+  const applySettingsToIframe = () => {
+    if (googleKey) postToIframe("saveApiKey", { provider: "google", key: googleKey });
+    if (elevenKey) postToIframe("saveApiKey", { provider: "eleven", key: elevenKey });
+    postToIframe("setVoice", { value: voiceProvider });
+  };
+
+  const handleIframeLoad = () => {
+    applySettingsToIframe();
+  };
+
+  const handleSaveGoogle = () => {
+    sessionStorage.setItem("google-tts-apikey", googleKey);
+    postToIframe("saveApiKey", { provider: "google", key: googleKey });
+  };
+
+  const handleSaveEleven = () => {
+    sessionStorage.setItem("elevenlabs-apikey", elevenKey);
+    postToIframe("saveApiKey", { provider: "eleven", key: elevenKey });
+  };
+
+  const handleVoiceChange = (val: "google" | "eleven") => {
+    setVoiceProvider(val);
+    sessionStorage.setItem("voice-provider", val);
+    postToIframe("setVoice", { value: val });
+  };
+
+  const handleChatSubmit = () => {
+    if (!chatInput.trim() || isSpeaking) return;
+    
+    setIsSpeaking(true);
+    
+    // Send message to iframe to make avatar speak
+    postToIframe("speak", { text: chatInput });
+    
+    // Clear input
+    setChatInput("");
+    
+    // Simulate speaking duration (you can adjust this or get feedback from iframe)
+    setTimeout(() => {
+      setIsSpeaking(false);
+    }, 3000);
+  };
+
   const handleDragEnd = () => {
     if (!containerRef.current) return;
     
@@ -346,12 +420,16 @@ export default function CallPage() {
         <div className="w-full h-full flex flex-col px-6 py-2 gap-1">
           {/* Header with Session Title and Timer */}
           <div className="flex items-center justify-between my-4">
-            {/* Back Button and Session Title */}
-            <div className="flex items-center gap-4">
-              <Link href="/" className="p-2 rounded-lg bg-white/20 hover:bg-white/30 transition-colors">
-                <ArrowLeft className="w-5 h-5 text-white" />
-              </Link>
-              <h2 className="text-lg font-medium text-white">Therapy Call with EMURA</h2>
+            {/* Session Title with Hamburger */}
+            <div className="flex items-center gap-3">
+              <button
+                aria-label="Toggle settings"
+                className="inline-flex items-center justify-center w-10 h-10 rounded-md border hover:bg-muted/50 transition"
+                onClick={() => setIsSettingsOpen(!isSettingsOpen)}
+              >
+                <Menu className="w-5 h-5" />
+              </button>
+              <h2 className="text-lg font-medium text-foreground">AI Therapy Session</h2>
             </div>
             
             {/* Timer Pill */}
@@ -380,18 +458,124 @@ export default function CallPage() {
             </motion.div>
           </div>
 
+          {/* Settings Dropdown Panel */}
+          <motion.div
+            initial={false}
+            animate={{
+              height: isSettingsOpen ? "auto" : 0,
+              opacity: isSettingsOpen ? 1 : 0,
+            }}
+            transition={{ duration: 0.3, ease: "easeInOut" }}
+            className="overflow-hidden"
+          >
+            <div className="bg-muted/30 backdrop-blur-sm border rounded-lg p-4 mb-4 space-y-4">
+              {/* Chat Input */}
+              <div>
+                <div className="text-sm font-medium mb-2">Tell Avatar What to Say</div>
+                <PromptInput
+                  value={chatInput}
+                  onValueChange={setChatInput}
+                  isLoading={isSpeaking}
+                  onSubmit={handleChatSubmit}
+                  className="w-full"
+                >
+                  <PromptInputTextarea placeholder="Type a message for the avatar..." />
+                  <PromptInputActions className="justify-end pt-2">
+                    <PromptInputAction
+                      tooltip={isSpeaking ? "Speaking..." : "Send message"}
+                    >
+                      <Button
+                        variant="default"
+                        size="icon"
+                        className="h-8 w-8 rounded-full"
+                        onClick={handleChatSubmit}
+                        disabled={isSpeaking || !chatInput.trim()}
+                      >
+                        {isSpeaking ? (
+                          <Square className="size-5 fill-current" />
+                        ) : (
+                          <ArrowUp className="size-5" />
+                        )}
+                      </Button>
+                    </PromptInputAction>
+                  </PromptInputActions>
+                </PromptInput>
+              </div>
+
+              {/* Voice Provider Selection */}
+              <div>
+                <div className="text-sm font-medium mb-2">Voice Provider</div>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    className={`border rounded-md px-3 py-2 text-sm ${voiceProvider === 'google' ? 'bg-primary text-primary-foreground' : 'bg-background hover:bg-muted/50'}`}
+                    onClick={() => handleVoiceChange('google')}
+                  >
+                    Google TTS
+                  </button>
+                  <button
+                    className={`border rounded-md px-3 py-2 text-sm ${voiceProvider === 'eleven' ? 'bg-primary text-primary-foreground' : 'bg-background hover:bg-muted/50'}`}
+                    onClick={() => handleVoiceChange('eleven')}
+                  >
+                    ElevenLabs
+                  </button>
+                </div>
+              </div>
+
+              {/* API Keys */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <div className="text-sm font-medium mb-1">Google API Key</div>
+                  <div className="flex gap-2">
+                    <input
+                      className="flex-1 px-3 py-2 text-sm rounded-md border bg-background"
+                      placeholder="Your Google TTS API key..."
+                      type="password"
+                      value={googleKey}
+                      onChange={(e) => setGoogleKey(e.target.value)}
+                    />
+                    <button 
+                      className="border rounded-md px-3 py-2 text-sm bg-background hover:bg-muted/50" 
+                      onClick={handleSaveGoogle}
+                    >
+                      Save
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-sm font-medium mb-1">ElevenLabs API Key</div>
+                  <div className="flex gap-2">
+                    <input
+                      className="flex-1 px-3 py-2 text-sm rounded-md border bg-background"
+                      placeholder="Your ElevenLabs API key..."
+                      type="password"
+                      value={elevenKey}
+                      onChange={(e) => setElevenKey(e.target.value)}
+                    />
+                    <button 
+                      className="border rounded-md px-3 py-2 text-sm bg-background hover:bg-muted/50" 
+                      onClick={handleSaveEleven}
+                    >
+                      Save
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+
           {/* Video Area - Takes up remaining space */}
           <div className="flex-1 flex items-start justify-center">
             {/* Picture-in-Picture Mode */}
             {viewMode === "pip" && (
               <div ref={containerRef} className="relative w-full h-full bg-gray-900 rounded-xl overflow-hidden">
-                {/* TalkingHead 3D Therapist */}
+                {/* AI Therapist Video - TalkingHead iframe */}
                 <iframe
                   ref={talkingHeadRef}
-                  src="http://localhost:8080"
+                  onLoad={handleIframeLoad}
+                  src="http://localhost:8080/index-modular.html"
                   className="w-full h-full border-0"
-                  title="EMURA 3D Therapist"
-                  allow="microphone; camera; autoplay"
+                  allow="camera; microphone; autoplay; fullscreen"
                 />
                 
                 {/* Captions - Bottom Left */}
@@ -456,7 +640,13 @@ export default function CallPage() {
               <div className="w-full h-full flex gap-4">
                 {/* AI Therapist Video - Left Side */}
                 <div className="relative w-1/2 h-full bg-gray-900 rounded-xl overflow-hidden flex items-center justify-center">
-                  <span className="text-gray-500 text-lg">AI Therapist Video</span>
+                  <iframe
+                    ref={talkingHeadRef}
+                    onLoad={handleIframeLoad}
+                    src="http://localhost:8080/index-modular.html"
+                    className="w-full h-full border-0"
+                    allow="camera; microphone; autoplay; fullscreen"
+                  />
                   
                   {/* Captions - Bottom Left */}
                   {isCaptionsOn && (
