@@ -9,8 +9,7 @@ const cors = require('cors');
 const { Server } = require('socket.io');
 const { createServer } = require('http');
 const axios = require('axios');
-const FormData = require('form-data');
-const { Readable } = require('stream');
+const { ElevenLabsClient } = require('elevenlabs');
 
 const app = express();
 const httpServer = createServer(app);
@@ -34,6 +33,9 @@ const PORT = process.env.PORT || 8001;
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
 const ELEVENLABS_VOICE_ID = process.env.ELEVENLABS_VOICE_ID || 'EXAVITQu4vr4xnSDxMaL'; // Default: Bella
 const PYTHON_SERVICE_URL = process.env.PYTHON_SERVICE_URL || 'http://localhost:8000';
+
+// Initialize ElevenLabs client
+const elevenlabs = ELEVENLABS_API_KEY ? new ElevenLabsClient({ apiKey: ELEVENLABS_API_KEY }) : null;
 
 // Health check
 app.get('/', (req, res) => {
@@ -70,32 +72,26 @@ app.post('/voice/synthesize', async (req, res) => {
 
   try {
     const voiceId = voice_id || ELEVENLABS_VOICE_ID;
-    const url = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`;
 
-    const response = await axios.post(
-      url,
-      {
-        text,
-        model_id: model_id || 'eleven_multilingual_v2',
-        voice_settings: {
-          stability: 0.5,
-          similarity_boost: 0.75,
-          style: 0.5,
-          use_speaker_boost: true
-        }
-      },
-      {
-        headers: {
-          'xi-api-key': ELEVENLABS_API_KEY,
-          'Content-Type': 'application/json',
-          'Accept': 'audio/mpeg'
-        },
-        responseType: 'arraybuffer'
+    // Generate audio using official SDK
+    const audio = await elevenlabs.textToSpeech.convert(voiceId, {
+      text,
+      model_id: model_id || 'eleven_multilingual_v2',
+      voice_settings: {
+        stability: 0.5,
+        similarity_boost: 0.75,
+        style: 0.5,
+        use_speaker_boost: true
       }
-    );
+    });
 
-    // Convert to base64 for easy frontend handling
-    const audioBase64 = Buffer.from(response.data).toString('base64');
+    // Convert stream to buffer then base64
+    const chunks = [];
+    for await (const chunk of audio) {
+      chunks.push(chunk);
+    }
+    const audioBuffer = Buffer.concat(chunks);
+    const audioBase64 = audioBuffer.toString('base64');
 
     res.json({
       audio_base64: audioBase64,
@@ -103,10 +99,10 @@ app.post('/voice/synthesize', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('ElevenLabs API Error:', error.response?.data || error.message);
+    console.error('ElevenLabs API Error:', error.message);
     res.status(500).json({
       error: 'Failed to synthesize voice',
-      details: error.response?.data || error.message
+      details: error.message
     });
   }
 });
@@ -128,32 +124,27 @@ app.post('/voice/stream', async (req, res) => {
 
   try {
     const voiceId = voice_id || ELEVENLABS_VOICE_ID;
-    const url = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream`;
 
-    const response = await axios.post(
-      url,
-      {
-        text,
-        model_id: 'eleven_multilingual_v2',
-        voice_settings: {
-          stability: 0.5,
-          similarity_boost: 0.75
-        }
-      },
-      {
-        headers: {
-          'xi-api-key': ELEVENLABS_API_KEY,
-          'Content-Type': 'application/json'
-        },
-        responseType: 'stream'
+    // Stream audio using official SDK
+    const audioStream = await elevenlabs.textToSpeech.convertAsStream(voiceId, {
+      text,
+      model_id: 'eleven_multilingual_v2',
+      voice_settings: {
+        stability: 0.5,
+        similarity_boost: 0.75
       }
-    );
+    });
 
     res.setHeader('Content-Type', 'audio/mpeg');
-    response.data.pipe(res);
+    
+    // Pipe the stream to response
+    for await (const chunk of audioStream) {
+      res.write(chunk);
+    }
+    res.end();
 
   } catch (error) {
-    console.error('ElevenLabs Streaming Error:', error.response?.data || error.message);
+    console.error('ElevenLabs Streaming Error:', error.message);
     res.status(500).json({
       error: 'Failed to stream voice',
       details: error.message
