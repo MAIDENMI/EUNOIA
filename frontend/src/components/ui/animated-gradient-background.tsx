@@ -100,7 +100,7 @@ interface AnimatedGradientBackgroundProps {
  * @param {AnimatedGradientBackgroundProps} props - Props for configuring the gradient animation.
  * @returns JSX.Element
  */
-const AnimatedGradientBackground: React.FC<AnimatedGradientBackgroundProps> = ({
+const AnimatedGradientBackground: React.FC<AnimatedGradientBackgroundProps> = React.memo(({
    startingGap = 180,
    Breathing = true,
    gradientColors = [
@@ -358,7 +358,9 @@ const AnimatedGradientBackground: React.FC<AnimatedGradientBackgroundProps> = ({
          />
       </motion.div>
    );
-};
+});
+
+AnimatedGradientBackground.displayName = 'AnimatedGradientBackground';
 
 export default AnimatedGradientBackground;
 

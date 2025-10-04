@@ -12,9 +12,11 @@ interface FadingTextStreamProps {
   lines?: number
   /** Line height in em used to compute reserved height; keep in sync with content */
   lineHeightEm?: number
+  /** Show gradient fades at top and bottom */
+  showGradients?: boolean
 }
 
-export function FadingTextStream({ text, speed = 100, className, lines = 3, lineHeightEm = 1.5 }: FadingTextStreamProps) {
+export function FadingTextStream({ text, speed = 100, className, lines = 3, lineHeightEm = 1.5, showGradients = true }: FadingTextStreamProps) {
   const { segments } = useTextStream({
     textStream: text,
     mode: "fade",
@@ -60,7 +62,9 @@ export function FadingTextStream({ text, speed = 100, className, lines = 3, line
       {/* Virtual container with fixed height (e.g., 3 lines) */}
       <div className="relative rounded-md overflow-hidden">
         {/* Top fade gradient */}
-        <div className="absolute top-0 left-0 right-0 h-8 bg-gradient-to-b from-white/80 to-transparent z-10 pointer-events-none" />
+        {showGradients && (
+          <div className="absolute top-0 left-0 right-0 h-8 bg-gradient-to-b from-white/80 to-transparent z-10 pointer-events-none" />
+        )}
         
         {/* Scrollable content container */}
         <div 
@@ -102,7 +106,9 @@ export function FadingTextStream({ text, speed = 100, className, lines = 3, line
         </div>
         
         {/* Bottom fade gradient */}
-        <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-white/80 to-transparent z-10 pointer-events-none" />
+        {showGradients && (
+          <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-white/80 to-transparent z-10 pointer-events-none" />
+        )}
       </div>
     </div>
   )

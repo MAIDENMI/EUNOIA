@@ -1,7 +1,6 @@
 "use client"
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import AnimatedGradientBackground from "@/components/ui/animated-gradient-background";
-import { Card } from "@/components/ui/card";
 import { Dock } from "@/components/ui/dock-two";
 import { FadingTextStream } from "@/components/ui/fading-text-stream";
 import { motion, useMotionValue, animate } from "framer-motion";
@@ -18,13 +17,13 @@ import {
 } from "lucide-react";
 
 export default function CallPage() {
-  const [isListening] = useState(true); // Set to true for demo
-  const [audioLevel] = useState(0);
+  const isListening = useMemo(() => true, []); // Set to true for demo
+  const audioLevel = useMemo(() => 0, []);
   const [viewMode, setViewMode] = useState<"pip" | "split">("pip"); // pip = picture-in-picture, split = 50/50
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [isMicOn, setIsMicOn] = useState(true);
   const [isVideoOn, setIsVideoOn] = useState(true);
-  const [isCaptionsOn, setIsCaptionsOn] = useState(true);
+  const [isCaptionsOn, setIsCaptionsOn] = useState(false);
   const [callTime, setCallTime] = useState(0);
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -149,9 +148,9 @@ export default function CallPage() {
       
       {/* Content */}
       <div className="relative z-10 flex items-center justify-center h-full p-8">
-        <Card className="w-full h-full rounded-2xl shadow-lg bg-background flex flex-col px-6 py-2 gap-1">
+        <div className="w-full h-full flex flex-col px-6 py-2 gap-1">
           {/* Header with Session Title and Timer */}
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between my-4">
             {/* Session Title */}
             <h2 className="text-lg font-medium text-foreground">AI Therapy Session</h2>
             
@@ -191,6 +190,19 @@ export default function CallPage() {
                   <span className="text-gray-500 text-lg">AI Therapist Video</span>
                 </div>
                 
+                {/* Captions - Bottom Left */}
+                {isCaptionsOn && (
+                  <div className="absolute bottom-6 left-6 max-w-2xl">
+                    <FadingTextStream 
+                      text={isListening ? sampleText : ""}
+                      speed={80}
+                      className="text-white text-base"
+                      lines={2}
+                      showGradients={false}
+                    />
+                  </div>
+                )}
+                
                 {/* User's Video - Draggable Floating Card */}
                 <motion.div
                   drag
@@ -216,8 +228,21 @@ export default function CallPage() {
             {viewMode === "split" && (
               <div className="w-full h-full flex gap-4">
                 {/* AI Therapist Video - Left Side */}
-                <div className="w-1/2 h-full bg-gray-900 rounded-xl overflow-hidden flex items-center justify-center">
+                <div className="relative w-1/2 h-full bg-gray-900 rounded-xl overflow-hidden flex items-center justify-center">
                   <span className="text-gray-500 text-lg">AI Therapist Video</span>
+                  
+                  {/* Captions - Bottom Left */}
+                  {isCaptionsOn && (
+                    <div className="absolute bottom-6 left-6 max-w-xl">
+                      <FadingTextStream 
+                        text={isListening ? sampleText : ""}
+                        speed={80}
+                        className="text-white text-base"
+                        lines={2}
+                        showGradients={false}
+                      />
+                    </div>
+                  )}
                 </div>
                 
                 {/* User's Video - Right Side */}
@@ -235,21 +260,8 @@ export default function CallPage() {
           </div>
 
           {/* Bottom Controls Container - Stretches horizontally */}
-          <div className="flex items-center gap-8 w-full">
-            {/* Fading Text Stream - Left Side */}
-            <div className="max-w-md">
-              <FadingTextStream 
-                text={isListening && isCaptionsOn ? sampleText : ""}
-                speed={80}
-                className="text-gray-700 text-base"
-                lines={2}
-              />
-            </div>
-            
-            {/* Spacer to push dock to the right */}
-            <div className="flex-1" />
-            
-            {/* Google Meet Style Control Bar - Right Side */}
+          <div className="flex items-center justify-center gap-8 w-full mt-6">
+            {/* Google Meet Style Control Bar - Centered */}
             <div className="flex-shrink-0">
               <Dock
                 className="w-auto h-auto"
@@ -291,7 +303,7 @@ export default function CallPage() {
               />
             </div>
           </div>
-        </Card>
+        </div>
       </div>
     </div>
   );
