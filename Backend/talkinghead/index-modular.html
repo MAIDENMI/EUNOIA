@@ -1,0 +1,834 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Talking Head - Modular Edition</title>
+
+  <meta charset="utf-8">
+  <meta content="width=device-width, height=device-height, minimum-scale=1.0, maximum-scale=1.0, initial-scale=1.0, user-scalable=no, interactive-widget=resizes-content" name="viewport">
+  <link rel="icon" type="image/jpg" href="favicon.jpg">
+
+  <!-- Import Map for Three.js and TalkingHead -->
+  <script type="importmap">
+  { "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js/+esm",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/",
+      "talkinghead": "./modules/talkinghead.mjs"
+    }
+  }
+  </script>
+
+  <!-- D3.js for DOM manipulation -->
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  
+  <!-- Marked.js for Markdown rendering -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+  <style>
+    /* ========================================
+       THEME VARIABLES
+       ======================================== */
+    :root, .theme-dark {
+      --colorBody: #88ccff;
+      --colorBackground: #202020;
+      --colorPanel: rgba(32,32,32,0.98);
+      --colorBorderPassive: rgba(136,204,255,0.6);
+      --colorBorderActive: #88ccff;
+      --colorUserText: #88ccff;
+      --colorSystemText: #cc77ff;
+      --colorToolbarPassive: rgba(136,204,255,0.6);
+      --colorToolbarActive: #88ccff;
+    }
+
+    .theme-light {
+      --colorBody: #505050;
+      --colorBackground: #f0f0f0;
+      --colorPanel: rgba(224,224,224,0.98);
+      --colorBorderPassive: #d0d0d0;
+      --colorBorderActive: #d0d0d0;
+      --colorUserText: #404444;
+      --colorSystemText: #678fb9;
+      --colorToolbarPassive: rgba(80,80,80,0.75);
+      --colorToolbarActive: #606666;
+    }
+
+    /* ========================================
+       BASE STYLES
+       ======================================== */
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+    }
+
+    body {
+      background-color: var(--colorBackground);
+      color: var(--colorBody);
+      display: flex;
+      flex-direction: column;
+      max-height: 100vh;
+    }
+
+    /* ========================================
+       LAYOUT
+       ======================================== */
+    #avatar-container {
+      flex: 1;
+      position: relative;
+      width: 100%;
+      min-height: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    #avatar {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    #loading {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 24px;
+      font-weight: 600;
+      color: var(--colorBody);
+      text-align: center;
+      z-index: 100;
+      background: var(--colorPanel);
+      padding: 20px 40px;
+      border-radius: 12px;
+      border: 2px solid var(--colorBorderActive);
+    }
+
+    #controls {
+      background: var(--colorPanel);
+      border-top: 2px solid var(--colorBorderPassive);
+      padding: 20px;
+      display: none; /* Hidden by default when embedded */
+      flex-direction: column;
+      gap: 15px;
+      max-height: 50vh;
+      overflow-y: auto;
+      overflow-x: hidden;
+      flex-shrink: 0;
+    }
+    
+    #controls.visible {
+      display: flex;
+    }
+
+    /* ========================================
+       CONTROLS
+       ======================================== */
+    .control-row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .control-label {
+      color: var(--colorToolbarPassive);
+      min-width: 80px;
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    #text-input {
+      flex: 1;
+      background-color: transparent;
+      border: 2px solid var(--colorBorderPassive);
+      color: var(--colorUserText);
+      padding: 10px 15px;
+      font-size: 16px;
+      border-radius: 8px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    #text-input:focus {
+      border-color: var(--colorBorderActive);
+    }
+
+    #text-input::placeholder {
+      color: var(--colorToolbarPassive);
+      opacity: 0.5;
+    }
+
+    button {
+      background: var(--colorBorderActive);
+      border: none;
+      color: var(--colorBackground);
+      padding: 10px 24px;
+      font-size: 16px;
+      font-weight: 600;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(136, 204, 255, 0.3);
+    }
+
+    button:active {
+      transform: translateY(0);
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    select {
+      background: transparent;
+      border: 2px solid var(--colorBorderPassive);
+      color: var(--colorBody);
+      padding: 8px 12px;
+      font-size: 14px;
+      border-radius: 8px;
+      outline: none;
+      cursor: pointer;
+      transition: border-color 0.2s;
+    }
+
+    select:focus {
+      border-color: var(--colorBorderActive);
+    }
+
+    option {
+      background: var(--colorPanel);
+      color: var(--colorBody);
+    }
+
+    /* ========================================
+       CHAT OUTPUT
+       ======================================== */
+    #chat-output {
+      background: rgba(0,0,0,0.3);
+      border: 2px solid var(--colorBorderPassive);
+      border-radius: 8px;
+      padding: 15px;
+      max-height: 120px;
+      min-height: 80px;
+      overflow-y: auto;
+      font-size: 14px;
+      line-height: 1.6;
+      flex-shrink: 0;
+    }
+
+    #chat-output:empty::before {
+      content: "Chat messages will appear here...";
+      color: var(--colorToolbarPassive);
+      opacity: 0.5;
+    }
+
+    .message {
+      margin-bottom: 10px;
+      padding: 8px 12px;
+      border-radius: 6px;
+    }
+
+    .message.user {
+      background: rgba(136, 204, 255, 0.15);
+      color: var(--colorUserText);
+    }
+
+    .message.ai {
+      background: rgba(204, 119, 255, 0.15);
+      color: var(--colorSystemText);
+    }
+
+    /* ========================================
+       UTILITIES
+       ======================================== */
+    .hidden {
+      display: none !important;
+    }
+
+    .blink {
+      animation: blink 1s ease-in-out infinite;
+    }
+
+    @keyframes blink {
+      0%, 49% { opacity: 1; }
+      50%, 100% { opacity: 0.3; }
+    }
+
+    /* ========================================
+       SCROLLBAR STYLING
+       ======================================== */
+    #controls::-webkit-scrollbar {
+      width: 10px;
+    }
+
+    #controls::-webkit-scrollbar-track {
+      background: rgba(0,0,0,0.2);
+    }
+
+    #controls::-webkit-scrollbar-thumb {
+      background: var(--colorBorderPassive);
+      border-radius: 5px;
+    }
+
+    #controls::-webkit-scrollbar-thumb:hover {
+      background: var(--colorBorderActive);
+    }
+
+    /* ========================================
+       RESPONSIVE
+       ======================================== */
+    @media (max-width: 768px) {
+      #controls {
+        padding: 15px;
+        max-height: 60vh;
+      }
+
+      .control-row {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .control-label {
+        min-width: auto;
+      }
+
+      #chat-output {
+        max-height: 100px;
+        min-height: 60px;
+      }
+    }
+
+    @media (max-height: 700px) {
+      #controls {
+        max-height: 55vh;
+      }
+
+      #chat-output {
+        max-height: 80px;
+        min-height: 60px;
+      }
+
+      .control-row {
+        gap: 8px;
+      }
+
+      #controls {
+        gap: 10px;
+        padding: 15px;
+      }
+    }
+  </style>
+</head>
+
+<body class="theme-dark">
+
+  <div id="avatar-container">
+    <div id="avatar"></div>
+    <div id="loading">Initializing...</div>
+  </div>
+
+  <div id="controls">
+    <div id="chat-output"></div>
+
+    <div class="control-row">
+      <label class="control-label">Say:</label>
+      <input type="text" id="text-input" placeholder="Type something for the avatar to say...">
+      <button id="speak-btn">Speak</button>
+      <button id="stop-btn" disabled>Stop</button>
+    </div>
+
+    <div class="control-row">
+      <label class="control-label">AI Chat:</label>
+      <input type="text" id="ai-input" placeholder="Ask the AI something...">
+      <button id="ai-btn">Send</button>
+    </div>
+
+    <div class="control-row">
+      <label class="control-label">ElevenLabs Key:</label>
+      <input type="text" id="eleven-apikey" placeholder="Your ElevenLabs API key..." style="flex: 1;">
+      <button id="save-eleven-btn">Save</button>
+    </div>
+
+    <div class="control-row">
+      <label class="control-label">Google API Key:</label>
+      <input type="text" id="google-apikey" placeholder="Your Google TTS API key..." style="flex: 1;">
+      <button id="save-google-btn">Save</button>
+    </div>
+
+    <div class="control-row">
+      <label class="control-label">Voice:</label>
+      <select id="voice-type">
+        <option value="eleven">ElevenLabs</option>
+        <option value="google">Google TTS</option>
+      </select>
+      
+      <label class="control-label">Mood:</label>
+      <select id="mood-select">
+        <option value="neutral">Neutral</option>
+        <option value="happy">Happy</option>
+        <option value="angry">Angry</option>
+        <option value="sad">Sad</option>
+        <option value="fear">Fear</option>
+        <option value="disgust">Disgust</option>
+        <option value="love">Love</option>
+        <option value="sleep">Sleep</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- ========================================
+       MODULAR JAVASCRIPT
+       ======================================== -->
+  <script type="module">
+    // Import TalkingHead
+    import { TalkingHead } from "talkinghead";
+
+    // Import our modular code
+    import { cfg, initConfig, saveConfig, jwtGet } from './js/utils.js';
+    import { elevenSpeak, elevenClose, elevenSetOnProcessed } from './js/tts-elevenlabs.js';
+    import { geminiBuildMessage, geminiSendMessage, geminiStop } from './js/ai-gemini.js';
+    import { site } from './siteconfig.js';
+
+    // ========================================
+    // GLOBAL STATE
+    // ========================================
+    let head = null;
+
+    // DOM elements
+    const loadingEl = document.getElementById('loading');
+    const textInputEl = document.getElementById('text-input');
+    const speakBtnEl = document.getElementById('speak-btn');
+    const stopBtnEl = document.getElementById('stop-btn');
+    const aiInputEl = document.getElementById('ai-input');
+    const aiBtnEl = document.getElementById('ai-btn');
+    const voiceTypeEl = document.getElementById('voice-type');
+    const moodSelectEl = document.getElementById('mood-select');
+    const chatOutputEl = document.getElementById('chat-output');
+    const googleApikeyEl = document.getElementById('google-apikey');
+    const saveGoogleBtnEl = document.getElementById('save-google-btn');
+    const elevenApikeyEl = document.getElementById('eleven-apikey');
+    const saveElevenBtnEl = document.getElementById('save-eleven-btn');
+
+    // ========================================
+    // UTILITY FUNCTIONS
+    // ========================================
+
+    function updateLoadingStatus(message) {
+      if (loadingEl) {
+        loadingEl.textContent = message;
+      }
+    }
+
+    function hideLoading() {
+      if (loadingEl) {
+        loadingEl.classList.add('hidden');
+      }
+    }
+
+    function addChatMessage(text, type = 'user') {
+      const messageEl = document.createElement('div');
+      messageEl.className = `message ${type}`;
+      messageEl.textContent = text;
+      chatOutputEl.appendChild(messageEl);
+      chatOutputEl.scrollTop = chatOutputEl.scrollHeight;
+    }
+
+    // ========================================
+    // SPEAK FUNCTIONS
+    // ========================================
+
+    async function speak(text) {
+      if (!head || !text.trim()) return;
+
+      try {
+        speakBtnEl.disabled = true;
+        stopBtnEl.disabled = false;
+        addChatMessage(text, 'user');
+
+        const voiceType = voiceTypeEl.value;
+
+        if (voiceType === 'eleven') {
+          // Use ElevenLabs with stored API key
+          const apikey = sessionStorage.getItem('elevenlabs-apikey');
+          if (!apikey) {
+            addChatMessage('❌ Please save your ElevenLabs API key first!', 'ai');
+            speakBtnEl.disabled = false;
+            stopBtnEl.disabled = true;
+            return;
+          }
+          
+          console.log('🎤 Using ElevenLabs with API key:', apikey.substring(0, 10) + '...');
+          
+          // Set the voice ID in config (Bella voice by default)
+          cfg('voice-eleven-id', 'EXAVITQu4vr4xnSDxMaL');
+          
+          // Create a mock element for d3.select to find the API key
+          let mockElement = document.getElementById('apikey-eleven');
+          if (!mockElement) {
+            mockElement = document.createElement('input');
+            mockElement.id = 'apikey-eleven';
+            mockElement.type = 'hidden';
+            mockElement.style.display = 'none';
+            document.body.appendChild(mockElement);
+          }
+          mockElement.value = apikey;
+          
+          console.log('🎤 Calling elevenSpeak...');
+          await elevenSpeak(head, text + " ", null, (node, word) => {
+            console.log('🗣️ Speaking word:', word);
+          });
+          // Flush to force generation to start and finalize this utterance
+          await elevenSpeak(head, "", null);
+          console.log('✅ ElevenLabs finished');
+        } else {
+          await head.speakText(text, {
+            lipsyncLang: 'en',
+            ttsVoice: 'en-GB-Standard-A',
+            ttsRate: 1.0,
+            ttsPitch: 0
+          });
+        }
+      } catch (error) {
+        console.error('Speak error:', error);
+        addChatMessage(`Error: ${error.message}`, 'ai');
+      } finally {
+        speakBtnEl.disabled = false;
+        stopBtnEl.disabled = true;
+      }
+    }
+
+    async function sendAIMessage() {
+      if (!head || !aiInputEl.value.trim()) return;
+
+      try {
+        aiBtnEl.disabled = true;
+        stopBtnEl.disabled = false;
+        
+        const userMessage = aiInputEl.value;
+        addChatMessage(userMessage, 'user');
+        aiInputEl.value = '';
+
+        // Create a temporary message container
+        const tempOutput = document.createElement('div');
+        tempOutput.dataset.output = '';
+        tempOutput.dataset.markdown = '';
+
+        // Mock messages array for Gemini
+        const messages = [
+          { role: 'user', content: userMessage }
+        ];
+
+        // Call Gemini with our modular function
+        await geminiSendMessage(
+          head,
+          site,
+          tempOutput,
+          messages,
+          (node, word) => {
+            // Add text callback
+            console.log('AI speaking:', word);
+          },
+          voiceTypeEl.value === 'eleven' ? elevenSpeak : null,
+          null // motion callback
+        );
+
+        // Display AI response
+        if (tempOutput.dataset.output) {
+          addChatMessage(tempOutput.dataset.output, 'ai');
+        }
+
+      } catch (error) {
+        console.error('AI error:', error);
+        addChatMessage(`Error: ${error.message}`, 'ai');
+      } finally {
+        aiBtnEl.disabled = false;
+        stopBtnEl.disabled = true;
+      }
+    }
+
+    function stopSpeaking() {
+      if (head) {
+        head.stopSpeaking();
+        geminiStop();
+        elevenClose();
+        stopBtnEl.disabled = true;
+      }
+    }
+
+    // ========================================
+    // API KEY MANAGEMENT
+    // ========================================
+
+    function saveGoogleApiKey() {
+      const apikey = googleApikeyEl.value.trim();
+      if (apikey) {
+        sessionStorage.setItem('google-tts-apikey', apikey);
+        
+        // Update TalkingHead instance
+        if (head) {
+          head.opt.ttsEndpoint = "https://eu-texttospeech.googleapis.com/v1beta1/text:synthesize";
+          head.opt.ttsApikey = apikey;
+          head.opt.jwtGet = null;
+        }
+        
+        addChatMessage('✓ Google API key saved!', 'ai');
+        googleApikeyEl.style.borderColor = 'var(--colorBorderActive)';
+      }
+    }
+
+    function saveElevenLabsApiKey() {
+      const apikey = elevenApikeyEl.value.trim();
+      if (apikey) {
+        sessionStorage.setItem('elevenlabs-apikey', apikey);
+        
+        // Create hidden input for ElevenLabs module to read
+        let mockElement = document.getElementById('apikey-eleven');
+        if (!mockElement) {
+          mockElement = document.createElement('input');
+          mockElement.id = 'apikey-eleven';
+          mockElement.type = 'hidden';
+          mockElement.style.display = 'none';
+          document.body.appendChild(mockElement);
+        }
+        mockElement.value = apikey;
+        
+        addChatMessage('✓ ElevenLabs API key saved! Select ElevenLabs voice and speak.', 'ai');
+        elevenApikeyEl.style.borderColor = 'var(--colorBorderActive)';
+      }
+    }
+
+    function loadApiKeys() {
+      const googleKey = sessionStorage.getItem('google-tts-apikey');
+      const elevenKey = sessionStorage.getItem('elevenlabs-apikey');
+      
+      if (googleKey) {
+        googleApikeyEl.value = googleKey;
+        googleApikeyEl.style.borderColor = 'var(--colorBorderActive)';
+      }
+      
+      if (elevenKey) {
+        elevenApikeyEl.value = elevenKey;
+        elevenApikeyEl.style.borderColor = 'var(--colorBorderActive)';
+        
+        // Create hidden input for ElevenLabs module to read
+        let mockElement = document.getElementById('apikey-eleven');
+        if (!mockElement) {
+          mockElement = document.createElement('input');
+          mockElement.id = 'apikey-eleven';
+          mockElement.type = 'hidden';
+          mockElement.style.display = 'none';
+          document.body.appendChild(mockElement);
+        }
+        mockElement.value = elevenKey;
+      }
+      
+      return { google: googleKey, eleven: elevenKey };
+    }
+
+    // ========================================
+    // EVENT HANDLERS
+    // ========================================
+
+    saveGoogleBtnEl.addEventListener('click', saveGoogleApiKey);
+    saveElevenBtnEl.addEventListener('click', saveElevenLabsApiKey);
+
+    googleApikeyEl.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        saveGoogleApiKey();
+      }
+    });
+
+    elevenApikeyEl.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        saveElevenLabsApiKey();
+      }
+    });
+
+    speakBtnEl.addEventListener('click', () => {
+      speak(textInputEl.value);
+    });
+
+    textInputEl.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        speak(textInputEl.value);
+      }
+    });
+
+    aiBtnEl.addEventListener('click', () => {
+      sendAIMessage();
+    });
+
+    aiInputEl.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        sendAIMessage();
+      }
+    });
+
+    stopBtnEl.addEventListener('click', stopSpeaking);
+
+    moodSelectEl.addEventListener('change', () => {
+      if (head) {
+        try {
+          head.setMood(moodSelectEl.value);
+        } catch (e) {
+          console.error('Mood change error:', e);
+        }
+      }
+    });
+
+    // ========================================
+    // POST MESSAGE LISTENER (for parent window control)
+    // ========================================
+    
+    window.addEventListener('message', (event) => {
+      // Security: verify origin if needed
+      // if (event.origin !== 'http://localhost:3000') return;
+      
+      const { type, payload } = event.data;
+      
+      switch (type) {
+        case 'saveApiKey':
+          if (payload.provider === 'google') {
+            googleApikeyEl.value = payload.key;
+            saveGoogleApiKey();
+          } else if (payload.provider === 'eleven') {
+            elevenApikeyEl.value = payload.key;
+            saveElevenLabsApiKey();
+          }
+          break;
+          
+        case 'setVoice':
+          if (payload.value === 'google' || payload.value === 'eleven') {
+            voiceTypeEl.value = payload.value;
+          }
+          break;
+          
+        case 'speak':
+          if (payload.text && head) {
+            speak(payload.text);
+          }
+          break;
+          
+        case 'toggleControls':
+          const controlsEl = document.getElementById('controls');
+          if (payload.visible) {
+            controlsEl.classList.add('visible');
+          } else {
+            controlsEl.classList.remove('visible');
+          }
+          break;
+      }
+    });
+
+    // ========================================
+    // INITIALIZATION
+    // ========================================
+
+    document.addEventListener('DOMContentLoaded', async function() {
+      
+      try {
+        // Initialize config
+        initConfig();
+
+        // Load saved API keys
+        const savedKeys = loadApiKeys();
+        
+        console.log('🔑 Loaded API keys:', { 
+          hasGoogle: !!savedKeys.google, 
+          hasEleven: !!savedKeys.eleven 
+        });
+
+        updateLoadingStatus('Initializing TalkingHead...');
+
+        // Create the talking head avatar
+        const nodeAvatar = document.getElementById('avatar');
+        const talkingHeadOptions = {
+          ttsEndpoint: "https://eu-texttospeech.googleapis.com/v1beta1/text:synthesize",
+          cameraZoomEnable: true,
+          cameraPanEnable: true,
+          cameraView: 'upper',
+          avatarMood: 'neutral',
+          lipsyncModules: ["en", "fi", "lt", "fr", "de"]
+        };
+
+        // If we have a saved Google API key, use it; otherwise use JWT
+        if (savedKeys.google) {
+          talkingHeadOptions.ttsApikey = savedKeys.google;
+        } else {
+          talkingHeadOptions.jwtGet = jwtGet;
+        }
+
+        head = new TalkingHead(nodeAvatar, talkingHeadOptions);
+
+        // Make head available globally for debugging
+        window.head = head;
+
+        updateLoadingStatus('Loading avatar...');
+
+        // Get JWT token
+        await jwtGet();
+
+        // Load the first avatar from site config
+        const firstAvatar = Object.values(site.avatars)[0];
+        await head.showAvatar({
+          url: firstAvatar.url,
+          body: firstAvatar.body,
+          avatarMood: 'neutral',
+          ttsLang: 'en-GB',
+          ttsVoice: 'en-GB-Standard-A',
+          lipsyncLang: 'en'
+        }, (progress) => {
+          if (progress.lengthComputable) {
+            const percent = Math.round((progress.loaded / progress.total) * 100);
+            updateLoadingStatus(`Loading avatar... ${percent}%`);
+          }
+        });
+
+        hideLoading();
+        console.log('✅ Avatar loaded successfully!');
+        
+        if (savedKeys.eleven) {
+          addChatMessage('✓ Avatar ready with ElevenLabs! Type something and click Speak.', 'ai');
+        } else if (savedKeys.google) {
+          addChatMessage('✓ Avatar ready with Google TTS! Type something and click Speak.', 'ai');
+        } else {
+          addChatMessage('⚠️ Please enter an API key above to enable speech.', 'ai');
+        }
+
+        // Double click to look at
+        document.body.addEventListener('dblclick', (e) => {
+          if (head && !head.touchAt(e.clientX, e.clientY)) {
+            head.lookAt(e.clientX, e.clientY, 500);
+          }
+        });
+
+        // Pause when not visible
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'visible') {
+            head.start();
+          } else {
+            head.stop();
+          }
+        });
+
+      } catch (error) {
+        console.error('Initialization error:', error);
+        updateLoadingStatus(`Error: ${error.message}`);
+      }
+    });
+
+  </script>
+
+</body>
+</html>
+

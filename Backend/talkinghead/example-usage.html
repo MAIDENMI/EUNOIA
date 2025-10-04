@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Modular Talking Head - Usage Example</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <!-- Link to extracted CSS -->
+  <link rel="stylesheet" href="styles.css">
+  
+  <style>
+    /* Additional example-specific styles */
+    .example-container {
+      max-width: 1200px;
+      margin: 20px auto;
+      padding: 20px;
+      background: #f5f5f5;
+      border-radius: 8px;
+    }
+    .example-section {
+      background: white;
+      padding: 20px;
+      margin: 20px 0;
+      border-radius: 6px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .example-section h2 {
+      margin-top: 0;
+      color: #333;
+      border-bottom: 2px solid #88ccff;
+      padding-bottom: 10px;
+    }
+    .button {
+      background: #88ccff;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      margin: 5px;
+      transition: background 0.3s;
+    }
+    .button:hover {
+      background: #66aadd;
+    }
+    .button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+    #avatar-container {
+      width: 100%;
+      height: 500px;
+      background: #202020;
+      border-radius: 8px;
+      position: relative;
+    }
+    .input-group {
+      margin: 15px 0;
+    }
+    .input-group label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: bold;
+      color: #555;
+    }
+    .input-group input,
+    .input-group textarea {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+    .input-group textarea {
+      min-height: 100px;
+      resize: vertical;
+    }
+    #chat-output {
+      background: #f9f9f9;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 15px;
+      min-height: 200px;
+      max-height: 400px;
+      overflow-y: auto;
+      font-family: 'Courier New', monospace;
+    }
+    .message {
+      margin: 10px 0;
+      padding: 10px;
+      border-radius: 4px;
+    }
+    .message.user {
+      background: #e3f2fd;
+      border-left: 3px solid #2196f3;
+    }
+    .message.ai {
+      background: #f3e5f5;
+      border-left: 3px solid #9c27b0;
+    }
+    .status {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 3px;
+      font-size: 12px;
+      margin-left: 10px;
+    }
+    .status.success {
+      background: #4caf50;
+      color: white;
+    }
+    .status.error {
+      background: #f44336;
+      color: white;
+    }
+    .status.processing {
+      background: #ff9800;
+      color: white;
+    }
+  </style>
+</head>
+<body>
+
+<div class="example-container">
+  <h1>🎯 Modular Talking Head - Working Example</h1>
+  <p>This demonstrates how to use the extracted modules together.</p>
+
+  <!-- Avatar Display -->
+  <div class="example-section">
+    <h2>1. Avatar</h2>
+    <div id="avatar-container"></div>
+    <button class="button" id="btn-init-avatar">Initialize Avatar</button>
+    <span id="status-avatar"></span>
+  </div>
+
+  <!-- ElevenLabs TTS Example -->
+  <div class="example-section">
+    <h2>2. ElevenLabs Text-to-Speech</h2>
+    <div class="input-group">
+      <label>Text to Speak:</label>
+      <textarea id="tts-text" placeholder="Enter text for the avatar to speak...">Hello! This is a demonstration of the modular ElevenLabs integration.</textarea>
+    </div>
+    <button class="button" id="btn-speak-eleven">Speak with ElevenLabs</button>
+    <button class="button" id="btn-stop-speech">Stop Speaking</button>
+    <span id="status-tts"></span>
+  </div>
+
+  <!-- Gemini AI Chat Example -->
+  <div class="example-section">
+    <h2>3. Gemini AI Chat</h2>
+    <div class="input-group">
+      <label>Your Message:</label>
+      <input type="text" id="chat-input" placeholder="Type your message to Gemini..." />
+    </div>
+    <button class="button" id="btn-send-message">Send to Gemini</button>
+    <button class="button" id="btn-stop-generation">Stop Generation</button>
+    <span id="status-chat"></span>
+    
+    <div class="input-group">
+      <label>Chat History:</label>
+      <div id="chat-output"></div>
+    </div>
+  </div>
+
+  <!-- Whisper Audio Example -->
+  <div class="example-section">
+    <h2>4. Whisper Audio Processing</h2>
+    <div class="input-group">
+      <label>Upload MP3 Audio:</label>
+      <input type="file" id="audio-file" accept="audio/mp3,audio/mpeg" />
+    </div>
+    <button class="button" id="btn-process-audio" disabled>Process Audio</button>
+    <button class="button" id="btn-play-audio" disabled>Play Processed Audio</button>
+    <span id="status-whisper"></span>
+  </div>
+
+  <!-- Configuration Example -->
+  <div class="example-section">
+    <h2>5. Configuration Management</h2>
+    <div class="input-group">
+      <label>Current Settings:</label>
+      <pre id="config-display" style="background: #f0f0f0; padding: 10px; border-radius: 4px;"></pre>
+    </div>
+    <button class="button" id="btn-show-config">Show Configuration</button>
+    <button class="button" id="btn-save-config">Save Configuration</button>
+    <span id="status-config"></span>
+  </div>
+</div>
+
+<!-- External Dependencies -->
+<script src="https://d3js.org/d3.v6.min.js"></script>
+<script async src="https://cdn.jsdelivr.net/npm/es-module-shims@1.7.1/dist/es-module-shims.js"></script>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js/+esm",
+    "three/examples/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/",
+    "dompurify": "https://cdn.jsdelivr.net/npm/dompurify@3.1.7/+esm",
+    "marked": "https://cdn.jsdelivr.net/npm/marked@14.1.3/+esm"
+  }
+}
+</script>
+
+<!-- Main Application Script -->
+<script type="module">
+// =============================================================================
+// IMPORT ALL THE MODULES
+// =============================================================================
+
+import { TalkingHead } from "./modules/talkinghead.mjs";
+import { site } from './siteconfig.js';
+
+// Configuration & Utilities
+import { cfg, initConfig, saveConfig, jwtGet } from './js/utils.js';
+import { API_PROXIES } from './js/config.js';
+
+// ElevenLabs TTS
+import { elevenSpeak, elevenClose, elevenStatus } from './js/tts-elevenlabs.js';
+
+// Gemini AI
+import { geminiBuildMessage, geminiSendMessage, geminiStop } from './js/ai-gemini.js';
+
+// Whisper Audio
+import { whisperLoadMP3, whisperPlay, whisperIsLoaded, whisperGetLanguage } from './js/audio-whisper.js';
+
+// =============================================================================
+// INITIALIZE APPLICATION
+// =============================================================================
+
+let head = null;
+let audioFile = null;
+
+// Initialize configuration
+initConfig();
+
+// Helper function to show status
+function showStatus(elementId, message, type = 'success') {
+  const el = document.getElementById(elementId);
+  el.innerHTML = `<span class="status ${type}">${message}</span>`;
+  setTimeout(() => {
+    el.innerHTML = '';
+  }, 5000);
+}
+
+// Helper function to add text to UI
+function addTextToUI(node, text) {
+  if (node) {
+    node.textContent += text;
+  }
+}
+
+// =============================================================================
+// 1. AVATAR INITIALIZATION
+// =============================================================================
+
+document.getElementById('btn-init-avatar').addEventListener('click', async () => {
+  try {
+    showStatus('status-avatar', 'Initializing...', 'processing');
+    
+    // Create TalkingHead instance
+    const container = document.getElementById('avatar-container');
+    head = new TalkingHead(container, {
+      jwtGet: jwtGet,
+      ttsEndpoint: API_PROXIES.googleTTS,
+      cameraView: 'upper',
+      avatarMood: 'neutral',
+      lipsyncModules: ["en"]
+    });
+
+    // Load default avatar
+    await head.showAvatar({
+      url: './avatars/brunette.glb',
+      body: 'F',
+      avatarMood: 'neutral'
+    });
+
+    showStatus('status-avatar', 'Avatar loaded!', 'success');
+    console.log('✅ Avatar initialized');
+    
+    // Make head available globally for debugging
+    window.head = head;
+  } catch (error) {
+    console.error('Avatar initialization error:', error);
+    showStatus('status-avatar', 'Error: ' + error.message, 'error');
+  }
+});
+
+// =============================================================================
+// 2. ELEVENLABS TTS EXAMPLE
+// =============================================================================
+
+document.getElementById('btn-speak-eleven').addEventListener('click', async () => {
+  if (!head) {
+    alert('Please initialize the avatar first!');
+    return;
+  }
+
+  try {
+    const text = document.getElementById('tts-text').value;
+    if (!text) {
+      alert('Please enter text to speak!');
+      return;
+    }
+
+    showStatus('status-tts', 'Speaking with ElevenLabs...', 'processing');
+    
+    // Create a dummy node for text display
+    const outputNode = document.createElement('div');
+    
+    // Speak using ElevenLabs
+    await elevenSpeak(head, text, outputNode, addTextToUI);
+    
+    showStatus('status-tts', 'Speech completed!', 'success');
+    console.log('✅ ElevenLabs TTS completed');
+  } catch (error) {
+    console.error('ElevenLabs TTS error:', error);
+    showStatus('status-tts', 'Error: ' + error.message, 'error');
+  }
+});
+
+document.getElementById('btn-stop-speech').addEventListener('click', () => {
+  if (head) {
+    head.stopSpeaking();
+    elevenClose();
+    showStatus('status-tts', 'Speech stopped', 'success');
+  }
+});
+
+// =============================================================================
+// 3. GEMINI AI CHAT EXAMPLE
+// =============================================================================
+
+document.getElementById('btn-send-message').addEventListener('click', async () => {
+  if (!head) {
+    alert('Please initialize the avatar first!');
+    return;
+  }
+
+  try {
+    const input = document.getElementById('chat-input').value;
+    if (!input) {
+      alert('Please enter a message!');
+      return;
+    }
+
+    showStatus('status-chat', 'Sending to Gemini...', 'processing');
+    
+    // Add user message to chat output
+    const chatOutput = document.getElementById('chat-output');
+    const userMsg = document.createElement('div');
+    userMsg.className = 'message user';
+    userMsg.textContent = '👤 You: ' + input;
+    chatOutput.appendChild(userMsg);
+    
+    // Create AI response container
+    const aiMsg = document.createElement('div');
+    aiMsg.className = 'message ai';
+    aiMsg.textContent = '🤖 Gemini: ';
+    aiMsg.dataset.output = '';
+    aiMsg.dataset.markdown = '';
+    chatOutput.appendChild(aiMsg);
+    
+    // Simulate message building (in real app, you'd use geminiBuildMessage())
+    const messages = [
+      { role: 'user', content: input }
+    ];
+    
+    // Send to Gemini with ElevenLabs TTS
+    await geminiSendMessage(
+      head,
+      site,
+      aiMsg,
+      messages,
+      addTextToUI,
+      elevenSpeak  // Pass ElevenLabs for TTS
+    );
+    
+    // Clear input
+    document.getElementById('chat-input').value = '';
+    chatOutput.scrollTop = chatOutput.scrollHeight;
+    
+    showStatus('status-chat', 'Response received!', 'success');
+    console.log('✅ Gemini chat completed');
+  } catch (error) {
+    console.error('Gemini chat error:', error);
+    showStatus('status-chat', 'Error: ' + error.message, 'error');
+  }
+});
+
+document.getElementById('btn-stop-generation').addEventListener('click', () => {
+  geminiStop();
+  showStatus('status-chat', 'Generation stopped', 'success');
+});
+
+// Handle Enter key in chat input
+document.getElementById('chat-input').addEventListener('keypress', (e) => {
+  if (e.key === 'Enter') {
+    document.getElementById('btn-send-message').click();
+  }
+});
+
+// =============================================================================
+// 4. WHISPER AUDIO PROCESSING EXAMPLE
+// =============================================================================
+
+document.getElementById('audio-file').addEventListener('change', (e) => {
+  audioFile = e.target.files[0];
+  if (audioFile) {
+    document.getElementById('btn-process-audio').disabled = false;
+    showStatus('status-whisper', 'Audio file selected', 'success');
+  }
+});
+
+document.getElementById('btn-process-audio').addEventListener('click', async () => {
+  if (!head) {
+    alert('Please initialize the avatar first!');
+    return;
+  }
+
+  if (!audioFile) {
+    alert('Please select an audio file!');
+    return;
+  }
+
+  try {
+    showStatus('status-whisper', 'Processing audio with Whisper...', 'processing');
+    
+    // Process with Whisper
+    await whisperLoadMP3(head, audioFile);
+    
+    // Check if loaded and get language
+    if (whisperIsLoaded()) {
+      const lang = whisperGetLanguage();
+      document.getElementById('btn-play-audio').disabled = false;
+      showStatus('status-whisper', `Processed! Language: ${lang}`, 'success');
+      console.log('✅ Whisper processing completed');
+    } else {
+      throw new Error('Audio processing failed');
+    }
+  } catch (error) {
+    console.error('Whisper processing error:', error);
+    showStatus('status-whisper', 'Error: ' + error.message, 'error');
+  }
+});
+
+document.getElementById('btn-play-audio').addEventListener('click', async () => {
+  if (!head) {
+    alert('Please initialize the avatar first!');
+    return;
+  }
+
+  try {
+    showStatus('status-whisper', 'Playing audio...', 'processing');
+    
+    // Play with lip-sync
+    await whisperPlay(head);
+    
+    showStatus('status-whisper', 'Playback complete!', 'success');
+    console.log('✅ Whisper playback completed');
+  } catch (error) {
+    console.error('Whisper playback error:', error);
+    showStatus('status-whisper', 'Error: ' + error.message, 'error');
+  }
+});
+
+// =============================================================================
+// 5. CONFIGURATION MANAGEMENT EXAMPLE
+// =============================================================================
+
+document.getElementById('btn-show-config').addEventListener('click', () => {
+  try {
+    const config = cfg();
+    const display = document.getElementById('config-display');
+    display.textContent = JSON.stringify(config, null, 2);
+    showStatus('status-config', 'Configuration displayed', 'success');
+    console.log('Current config:', config);
+  } catch (error) {
+    console.error('Config display error:', error);
+    showStatus('status-config', 'Error: ' + error.message, 'error');
+  }
+});
+
+document.getElementById('btn-save-config').addEventListener('click', () => {
+  try {
+    saveConfig();
+    showStatus('status-config', 'Configuration saved!', 'success');
+    console.log('✅ Configuration saved to sessionStorage');
+  } catch (error) {
+    console.error('Config save error:', error);
+    showStatus('status-config', 'Error: ' + error.message, 'error');
+  }
+});
+
+// =============================================================================
+// INITIALIZATION
+// =============================================================================
+
+console.log('🚀 Modular Talking Head Example loaded!');
+console.log('Modules imported:');
+console.log('  ✅ config.js');
+console.log('  ✅ utils.js');
+console.log('  ✅ tts-elevenlabs.js');
+console.log('  ✅ ai-gemini.js');
+console.log('  ✅ audio-whisper.js');
+console.log('\nClick "Initialize Avatar" to begin!');
+
+</script>
+
+</body>
+</html>
+

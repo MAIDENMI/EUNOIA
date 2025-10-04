@@ -1,0 +1,11 @@
+68e0db8431d1fe24d0691d1f
+
+
+https://models.readyplayer.me/68e0db8431d1fe24d0691d1f.glb?morphTargets=ARKit,Oculus+Visemes,mouthOpen,mouthSmile,eyesClosed,eyesLookUp,eyesLookDown&textureSizeLimit=1024&textureFormat=png
+
+
+https://avatars.readyplayer.me/68e0db8431d1fe24d0691d1f.glb?morphTargetsGroup=ARKit,Oculus+Visemes&morphTargets=mouthSmile,mouthOpen,eyesClosed,eyesLookUp,eyesLookDown&textureSizeLimit=1024&textureFormat=
+
+
+
+https://models.readyplayer.me/68e0db8431d1fe24d0691d1f.glb

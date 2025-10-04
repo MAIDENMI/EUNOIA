@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Talking Head - Simple Test</title>
+
+  <style>
+    body, html { 
+      width:100%; height:100%; max-width: 1000px; margin: auto; 
+      position: relative; background-color: #202020; color: white; 
+      font-family: Arial, sans-serif;
+    }
+    #avatar { display: block; width:100%; height:100%; }
+    #controls { 
+      display: block; position: absolute; top: 10px; left: 10px; right: 10px; 
+      background: rgba(0,0,0,0.7); padding: 15px; border-radius: 10px;
+    }
+    #settings {
+      margin-bottom: 15px; padding-bottom: 15px; border-bottom: 1px solid #555;
+    }
+    .setting-group {
+      margin-bottom: 10px;
+    }
+    label {
+      display: inline-block; width: 140px; font-size: 14px;
+    }
+    input[type="text"], input[type="password"] {
+      width: 400px; padding: 5px; font-size: 14px;
+      background: #333; color: white; border: 1px solid #555;
+    }
+    #chatContainer {
+      margin-bottom: 10px;
+    }
+    #text { 
+      width: calc(100% - 110px); padding: 8px; font-size: 16px;
+      background: #333; color: white; border: 1px solid #555;
+    }
+    #speak { 
+      width: 100px; padding: 8px; font-size: 16px; 
+      background: #0066cc; color: white; border: none; cursor: pointer;
+    }
+    #speak:hover { background: #0088ee; }
+    #speak:disabled { background: #555; cursor: not-allowed; }
+    #loading { 
+      display: block; position: absolute; bottom: 10px; left: 10px; right: 10px; 
+      font-size: 18px; text-align: center;
+    }
+    #status {
+      margin-top: 10px; padding: 10px; background: rgba(0,0,0,0.5); 
+      border-radius: 5px; font-size: 12px; max-height: 100px; overflow-y: auto;
+    }
+    .error { color: #ff6666; }
+    .success { color: #66ff66; }
+    .info { color: #6699ff; }
+    button {
+      padding: 5px 10px; margin-left: 10px; background: #0066cc; 
+      color: white; border: none; cursor: pointer; border-radius: 3px;
+    }
+    button:hover { background: #0088ee; }
+  </style>
+
+  <script type="importmap">
+  { "imports":
+    {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js/+esm",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/",
+      "talkinghead": "./modules/talkinghead.mjs"
+    }
+  }
+  </script>
+
+  <script type="module">
+    import { TalkingHead } from "talkinghead";
+
+    let head;
+    let statusDiv;
+
+    function addStatus(message, type = 'info') {
+      const statusDiv = document.getElementById('status');
+      const time = new Date().toLocaleTimeString();
+      statusDiv.innerHTML = `<div class="${type}">[${time}] ${message}</div>` + statusDiv.innerHTML;
+    }
+
+    // Save settings to localStorage
+    function saveSettings() {
+      const openaiKey = document.getElementById('openaiKey').value;
+      const googleKey = document.getElementById('googleKey').value;
+      localStorage.setItem('openaiKey', openaiKey);
+      localStorage.setItem('googleKey', googleKey);
+      addStatus('Settings saved!', 'success');
+    }
+
+    // Load settings from localStorage
+    function loadSettings() {
+      const openaiKey = localStorage.getItem('openaiKey') || '';
+      const googleKey = localStorage.getItem('googleKey') || '';
+      document.getElementById('openaiKey').value = openaiKey;
+      document.getElementById('googleKey').value = googleKey;
+    }
+
+    async function callOpenAI(message) {
+      const apiKey = document.getElementById('openaiKey').value;
+      if (!apiKey) {
+        addStatus('OpenAI API key not set!', 'error');
+        return null;
+      }
+
+      try {
+        addStatus('Calling OpenAI API...', 'info');
+        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`
+          },
+          body: JSON.stringify({
+            model: 'gpt-3.5-turbo',
+            messages: [
+              { role: 'system', content: 'You are a friendly assistant. Keep responses concise (2-3 sentences).' },
+              { role: 'user', content: message }
+            ],
+            max_tokens: 150
+          })
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error?.message || 'OpenAI API error');
+        }
+
+        const data = await response.json();
+        const reply = data.choices[0].message.content;
+        addStatus(`OpenAI replied: ${reply.substring(0, 50)}...`, 'success');
+        return reply;
+      } catch (error) {
+        addStatus(`OpenAI error: ${error.message}`, 'error');
+        return null;
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', async function(e) {
+      statusDiv = document.getElementById('status');
+      loadSettings();
+
+      // Save button
+      document.getElementById('saveSettings').addEventListener('click', saveSettings);
+
+      // Instantiate the TalkingHead class
+      const nodeAvatar = document.getElementById('avatar');
+      const googleKey = document.getElementById('googleKey').value;
+
+      addStatus('Initializing TalkingHead...', 'info');
+      
+      head = new TalkingHead( nodeAvatar, {
+        ttsEndpoint: "https://eu-texttospeech.googleapis.com/v1beta1/text:synthesize",
+        ttsApikey: googleKey || null,
+        lipsyncModules: ["en"],
+        cameraView: "upper"
+      });
+
+      // Load and show the avatar
+      const nodeLoading = document.getElementById('loading');
+      try {
+        nodeLoading.textContent = "Loading avatar...";
+        addStatus('Loading 3D avatar model...', 'info');
+        
+        await head.showAvatar({
+          url: './avatars/brunette.glb',
+          body: 'F',
+          avatarMood: 'neutral',
+          ttsLang: "en-US",
+          ttsVoice: "en-US-Neural2-F",
+          lipsyncLang: 'en'
+        }, (ev) => {
+          if (ev.lengthComputable) {
+            let val = Math.min(100, Math.round(ev.loaded/ev.total * 100));
+            nodeLoading.textContent = "Loading " + val + "%";
+          }
+        });
+        
+        nodeLoading.style.display = 'none';
+        addStatus('Avatar loaded successfully!', 'success');
+      } catch (error) {
+        console.error(error);
+        nodeLoading.textContent = error.toString();
+        addStatus(`Error loading avatar: ${error.message}`, 'error');
+      }
+
+      // Speak when clicked
+      const nodeSpeak = document.getElementById('speak');
+      const nodeText = document.getElementById('text');
+      
+      nodeSpeak.addEventListener('click', async function () {
+        const text = nodeText.value.trim();
+        if (!text) return;
+
+        try {
+          nodeSpeak.disabled = true;
+          addStatus(`User: ${text}`, 'info');
+
+          // Get response from OpenAI
+          const reply = await callOpenAI(text);
+          
+          if (reply) {
+            // Make avatar speak the reply
+            const googleKey = document.getElementById('googleKey').value;
+            if (!googleKey) {
+              addStatus('Google TTS API key not set! Avatar will not speak.', 'error');
+              addStatus(`Response: ${reply}`, 'info');
+            } else {
+              // Update API key in case it changed
+              head.opt.ttsApikey = googleKey;
+              addStatus('Making avatar speak...', 'info');
+              await head.speakText(reply);
+            }
+          }
+
+          nodeText.value = '';
+        } catch (error) {
+          console.error(error);
+          addStatus(`Error: ${error.message}`, 'error');
+        } finally {
+          nodeSpeak.disabled = false;
+        }
+      });
+
+      // Allow Enter key to send message
+      nodeText.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter' && !nodeSpeak.disabled) {
+          nodeSpeak.click();
+        }
+      });
+
+      // Pause animation when document is not visible
+      document.addEventListener("visibilitychange", async function (ev) {
+        if (document.visibilityState === "visible") {
+          head.start();
+        } else {
+          head.stop();
+        }
+      });
+
+    });
+
+  </script>
+</head>
+
+<body>
+  <div id="avatar"></div>
+  <div id="controls">
+    <div id="settings">
+      <h3 style="margin-top: 0;">API Settings</h3>
+      <div class="setting-group">
+        <label>OpenAI API Key:</label>
+        <input id="openaiKey" type="password" placeholder="sk-...">
+        <button id="saveSettings">Save</button>
+      </div>
+      <div class="setting-group">
+        <label>Google TTS API Key:</label>
+        <input id="googleKey" type="password" placeholder="AIza...">
+      </div>
+      <small style="color: #888;">Keys are stored in browser localStorage. Get keys from: 
+        <a href="https://platform.openai.com/api-keys" target="_blank" style="color: #6699ff;">OpenAI</a> | 
+        <a href="https://console.cloud.google.com/apis/credentials" target="_blank" style="color: #6699ff;">Google Cloud</a>
+      </small>
+    </div>
+    <div id="chatContainer">
+      <input id="text" type="text" placeholder="Type a message and press Enter or click Speak...">
+      <button id="speak">Speak</button>
+    </div>
+    <div id="status"></div>
+  </div>
+  <div id="loading"></div>
+</body>
+
+</html>
+
