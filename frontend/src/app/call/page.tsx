@@ -1,5 +1,5 @@
 "use client"
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import AnimatedGradientBackground from "@/components/ui/animated-gradient-background";
 import { Card } from "@/components/ui/card";
 import { Dock } from "@/components/ui/dock-two";
@@ -12,13 +12,15 @@ import {
   MicOff, 
   Video, 
   VideoOff, 
-  PhoneOff, 
+  PhoneOff,
+  Phone,
   MoreVertical,
   Subtitles,
   Menu,
   ChevronDown,
   ArrowUp,
-  Square
+  Square,
+  MessageSquare
 } from "lucide-react";
 import {
   PromptInput,
@@ -40,9 +42,9 @@ export default function CallPage() {
   const [isCaptionsOn, setIsCaptionsOn] = useState(true);
   const [callTime, setCallTime] = useState(0);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   const [voiceProvider, setVoiceProvider] = useState<"google" | "eleven">("eleven");
   const [useWebSocket, setUseWebSocket] = useState<boolean>(true); // Toggle between WebSocket and legacy mode (default: true)
-  const [chatInput, setChatInput] = useState("");
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [transcript, setTranscript] = useState<string>("");
   const [aiResponse, setAiResponse] = useState<string>("");
@@ -51,6 +53,7 @@ export default function CallPage() {
   const [messages, setMessages] = useState<Array<{ role: string; content: string }>>([]);
   const [permissionError, setPermissionError] = useState<string | null>(null);
   const [showPermissionHelp, setShowPermissionHelp] = useState(false);
+  const [chatInputValue, setChatInputValue] = useState("");
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
@@ -60,6 +63,7 @@ export default function CallPage() {
   const analyserRef = useRef<AnalyserNode | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const micStreamRef = useRef<MediaStream | null>(null);
+  const chatMessagesEndRef = useRef<HTMLDivElement>(null);
 
   // Start audio level monitoring
   const startAudioLevelMonitoring = async () => {
@@ -194,7 +198,7 @@ export default function CallPage() {
   const x = useMotionValue(0);
   const y = useMotionValue(0);
   
-  const sampleText = "Hello, I'm speaking to the AI therapist right now. This text shows what I'm saying in real-time as the voice recognition processes my speech. The conversation is flowing naturally and the text continues to appear word by word. This creates a smooth and engaging experience during our therapy session.";
+  // Removed placeholder sampleText. Show only real transcript/response in UI.
 
   // Voice processing functions
   const startRecording = async () => {
@@ -442,7 +446,7 @@ export default function CallPage() {
   };
 
   // Handle starting/stopping the WebSocket conversation
-  const handleToggleConversation = async () => {
+  const handleToggleConversation = useCallback(async () => {
     console.log('🎙️ Toggle conversation clicked', { useWebSocket, isAgentConnected, agentId: config.elevenlabs.agentId });
     
     if (!useWebSocket) {
@@ -452,11 +456,29 @@ export default function CallPage() {
     }
 
     if (isAgentConnected) {
-      console.log('🛑 Stopping conversation...');
+      console.log('🛑 Ending conversation immediately...');
+      
+      // Immediately stop any speaking/audio
+      setIsSpeaking(false);
+      interruptAgent(); // Stop agent audio playback
+      
+      // Stop TalkingHead from speaking
+      if (talkingHeadRef.current && talkingHeadRef.current.contentWindow) {
+        console.log('🔇 Stopping TalkingHead speech');
+        talkingHeadRef.current.contentWindow.postMessage({
+          type: 'stop',
+        }, 'http://localhost:8080');
+      }
+      
+      // Disconnect WebSocket immediately
       await stopConversation();
       stopAudioLevelMonitoring();
+      
+      // Clear UI
       setTranscript("");
       setAiResponse("");
+      
+      console.log('✅ Conversation ended');
     } else {
       if (!config.elevenlabs.agentId) {
         console.warn('❌ No Agent ID configured');
@@ -487,41 +509,38 @@ export default function CallPage() {
         setShowPermissionHelp(true);
       }
     }
-  };
+  }, [useWebSocket, isAgentConnected, sendContextualUpdate, stopConversation, startConversation, voiceProvider, interruptAgent]);
 
-  const handleChatSubmit = async () => {
-    if (!chatInput.trim() || isSpeaking) return;
-    
-    setIsSpeaking(true);
-    const textToSpeak = chatInput;
-    
-    // Clear input immediately
-    setChatInput("");
-    
-    try {
-      // Send message to TalkingHead iframe to make avatar speak with lip-sync
-      // The iframe expects: { type: 'speak', payload: { text: '...' } }
-      if (talkingHeadRef.current && talkingHeadRef.current.contentWindow) {
-        console.log('📤 Sending speak message to TalkingHead iframe:', textToSpeak);
-        talkingHeadRef.current.contentWindow.postMessage({
-          type: 'speak',
-          payload: { text: textToSpeak }
-        }, config.talkingHead.url);
+  // Global keyboard shortcuts
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      // Avoid interfering with inputs/textareas
+      const target = e.target as HTMLElement | null;
+      const isTyping = !!target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
+      if (isTyping) return;
+
+      // Space: start/stop session
+      if (e.code === 'Space') {
+        e.preventDefault();
+        handleToggleConversation();
       }
-      
-      // Estimate speaking duration based on text length
-      const wordsPerMinute = 150;
-      const words = textToSpeak.split(' ').length;
-      const estimatedDuration = Math.max(3000, (words / wordsPerMinute) * 60 * 1000);
-      
-      setTimeout(() => {
-        setIsSpeaking(false);
-      }, estimatedDuration);
-    } catch (error) {
-      console.error('Error in manual avatar control:', error);
-      setIsSpeaking(false);
-    }
-  };
+      // M: mute/unmute
+      if (e.key.toLowerCase() === 'm') {
+        setIsMicOn(prev => !prev);
+      }
+      // V: toggle video
+      if (e.key.toLowerCase() === 'v') {
+        setIsVideoOn(prev => !prev);
+      }
+      // C: toggle captions
+      if (e.key.toLowerCase() === 'c') {
+        setIsCaptionsOn(prev => !prev);
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [handleToggleConversation]);
 
   const handleDragEnd = () => {
     if (!containerRef.current) return;
@@ -636,6 +655,11 @@ export default function CallPage() {
       stopAudioLevelMonitoring();
     };
   }, []);
+
+  // Auto-scroll chat to bottom when new messages arrive
+  useEffect(() => {
+    chatMessagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, isProcessing, isAgentSpeaking]);
 
   return (
     <div className="relative w-full h-screen overflow-hidden">
@@ -802,14 +826,25 @@ export default function CallPage() {
                   
                   {/* Captions - Bottom Left */}
                   {isCaptionsOn && (
-                    <div className="absolute bottom-6 left-6 max-w-xl">
-                      <FadingTextStream 
-                        text={isListening ? sampleText : ""}
-                        speed={80}
-                        className="text-white text-base"
-                        lines={2}
-                        showGradients={false}
-                      />
+                    <div className="absolute bottom-6 left-6 max-w-xl space-y-2">
+                      {transcript && (
+                        <div className="bg-blue-500/20 backdrop-blur-sm p-3 rounded-lg border border-blue-400/50">
+                          <p className="text-blue-200 text-xs mb-1">You:</p>
+                          <p className="text-white text-sm">{transcript}</p>
+                        </div>
+                      )}
+                      {aiResponse && (
+                        <div className="bg-purple-500/20 backdrop-blur-sm p-3 rounded-lg border border-purple-400/50">
+                          <p className="text-purple-200 text-xs mb-1">EMURA:</p>
+                          <FadingTextStream 
+                            text={aiResponse}
+                            speed={50}
+                            className="text-white text-sm"
+                            lines={3}
+                            showGradients={false}
+                          />
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -828,199 +863,161 @@ export default function CallPage() {
             )}
             </div>
 
-            {/* Settings Sidebar Panel - Slides in from right */}
+            {/* Chat Sidebar Panel - Slides in from right */}
           <motion.div
             initial={false}
             animate={{
-                width: isSettingsOpen ? "400px" : 0,
-              opacity: isSettingsOpen ? 1 : 0,
+                width: showHistory ? "450px" : 0,
+              opacity: showHistory ? 1 : 0,
             }}
             transition={{ duration: 0.3, ease: "easeInOut" }}
-            className="overflow-hidden"
+            className="overflow-hidden h-full"
           >
-              <div className="w-[400px] h-full bg-muted/30 backdrop-blur-sm border rounded-lg p-4 space-y-4 overflow-y-auto">
-              {/* Chat Input - Manual Avatar Control */}
-              <div>
-                <div className="text-sm font-medium mb-2">Manual Avatar Control</div>
-                <PromptInput
-                  value={chatInput}
-                  onValueChange={setChatInput}
-                  isLoading={isSpeaking}
-                  onSubmit={handleChatSubmit}
-                  className="w-full"
-                >
-                  <PromptInputTextarea placeholder="Type a message for the avatar to speak..." />
-                  <PromptInputActions className="justify-end pt-2">
-                    <PromptInputAction
-                      tooltip={isSpeaking ? "Speaking..." : "Make avatar speak"}
-                    >
-                      <Button
-                        variant="default"
-                        size="icon"
-                        className="h-8 w-8 rounded-full"
-                        onClick={handleChatSubmit}
-                        disabled={isSpeaking || !chatInput.trim()}
-                      >
-                        {isSpeaking ? (
-                          <Square className="size-5 fill-current" />
-                        ) : (
-                          <ArrowUp className="size-5" />
-                        )}
-                      </Button>
-                    </PromptInputAction>
-                  </PromptInputActions>
-                </PromptInput>
+              <div className="w-[450px] h-full bg-muted/30 backdrop-blur-sm border rounded-lg flex flex-col overflow-hidden">
+              {/* Chat Header */}
+              <div className="p-4 border-b">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-sm font-semibold">Conversation</h3>
+                  <div className={`flex items-center gap-2 px-2 py-1 rounded-full text-xs ${
+                    isAgentConnected 
+                      ? 'bg-green-500/20 text-green-400' 
+                      : 'bg-gray-500/20 text-gray-400'
+                  }`}>
+                    <div className={`w-1.5 h-1.5 rounded-full ${
+                      isAgentConnected ? 'bg-green-400 animate-pulse' : 'bg-gray-400'
+                    }`} />
+                    {isAgentConnected ? 'Connected' : 'Offline'}
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {messages.length === 0 
+                    ? 'Start a conversation with EMURA' 
+                    : `${messages.length} messages`}
+                </p>
               </div>
 
-              {/* WebSocket Mode Toggle */}
-              <div>
-                <div className="text-sm font-medium mb-2">Connection Mode</div>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    className={`border rounded-md px-3 py-2 text-sm ${!useWebSocket ? 'bg-primary text-primary-foreground' : 'bg-background hover:bg-muted/50'}`}
-                    onClick={handleWebSocketToggle}
-                  >
-                    Legacy Mode
-                  </button>
-                  <button
-                    className={`border rounded-md px-3 py-2 text-sm ${useWebSocket ? 'bg-primary text-primary-foreground' : 'bg-background hover:bg-muted/50'}`}
-                    onClick={handleWebSocketToggle}
-                  >
-                    WebSocket (Live)
-                  </button>
-                </div>
-                {useWebSocket && (
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Real-time conversation with ElevenLabs Agent
-                  </p>
-                )}
-              </div>
-
-              {/* Voice Provider Info for WebSocket Mode */}
-              {useWebSocket && (
-                <div className="bg-blue-500/10 border border-blue-500/50 rounded-lg p-3">
-                  <p className="text-blue-600 text-sm font-medium mb-1">🎙️ Live Conversation Mode</p>
-                  <p className="text-muted-foreground text-xs">
-                    Agent listens & responds with text → TalkingHead speaks using {voiceProvider === 'eleven' ? 'ElevenLabs' : 'Google'} TTS
-                  </p>
-                </div>
-              )}
-
-              {/* Voice Provider Selection */}
-              {useWebSocket ? (
-                <div>
-                  <div className="text-sm font-medium mb-2">TalkingHead Voice Provider</div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      className={`border rounded-md px-3 py-2 text-sm ${voiceProvider === 'google' ? 'bg-primary text-primary-foreground' : 'bg-background hover:bg-muted/50'}`}
-                      onClick={() => handleVoiceChange('google')}
-                      disabled={!config.google.apiKey}
-                    >
-                      Google TTS
-                    </button>
-                    <button
-                      className={`border rounded-md px-3 py-2 text-sm ${voiceProvider === 'eleven' ? 'bg-primary text-primary-foreground' : 'bg-background hover:bg-muted/50'}`}
-                      onClick={() => handleVoiceChange('eleven')}
-                      disabled={!config.elevenlabs.apiKey}
-                    >
-                      ElevenLabs TTS
-                    </button>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Voice provider for avatar speech synthesis
-                  </p>
-                </div>
-              ) : (
-                <div>
-                  <div className="text-sm font-medium mb-2">Legacy Voice Provider</div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      className={`border rounded-md px-3 py-2 text-sm ${voiceProvider === 'google' ? 'bg-primary text-primary-foreground' : 'bg-background hover:bg-muted/50'}`}
-                      onClick={() => handleVoiceChange('google')}
-                      disabled={!config.google.apiKey}
-                    >
-                      Google TTS
-                    </button>
-                    <button
-                      className={`border rounded-md px-3 py-2 text-sm ${voiceProvider === 'eleven' ? 'bg-primary text-primary-foreground' : 'bg-background hover:bg-muted/50'}`}
-                      onClick={() => handleVoiceChange('eleven')}
-                      disabled={!config.elevenlabs.apiKey}
-                    >
-                      ElevenLabs
-                    </button>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Configure API keys in .env.local file
-                  </p>
-                </div>
-              )}
-              
-              {/* Error Display */}
-              {agentError && useWebSocket && (
-                <div className="bg-red-500/10 border border-red-500/50 rounded-lg p-3">
-                  <p className="text-red-500 text-sm font-medium mb-1">Connection Error</p>
-                  <p className="text-red-500 text-xs">{agentError}</p>
-                </div>
-              )}
-
-              {/* WebSocket Session Control */}
-              {useWebSocket && (
-                <div className="border-t pt-4 mt-2">
-                  <div className="space-y-3">
-                    {/* Connection Status */}
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className={`w-3 h-3 rounded-full ${isAgentConnected ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
-                        <span className="text-sm font-medium">
-                          {isAgentConnected ? 'Connected to Agent' : 'Disconnected'}
-                        </span>
-                      </div>
-                      {isAgentConnected && isAgentSpeaking && (
-                        <span className="text-xs text-muted-foreground animate-pulse">
-                          Agent is speaking...
-                        </span>
-                      )}
+              {/* Chat Messages Container */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                {messages.length === 0 ? (
+                  <div className="flex items-center justify-center h-full">
+                    <div className="text-center text-muted-foreground text-sm">
+                      <p className="mb-2">No messages yet</p>
+                      <p className="text-xs">Click the phone icon to start</p>
                     </div>
-
-                    {/* Session Control Button */}
-                    <button
-                      onClick={handleToggleConversation}
-                      disabled={!config.elevenlabs.agentId && useWebSocket}
-                      className={`w-full py-3 px-4 rounded-lg font-medium transition-all ${
-                        isAgentConnected
-                          ? 'bg-red-500 hover:bg-red-600 text-white'
-                          : 'bg-green-500 hover:bg-green-600 text-white disabled:bg-gray-300 disabled:cursor-not-allowed'
-                      }`}
+                  </div>
+                ) : (
+                  messages.map((message, index) => (
+                    <motion.div
+                      key={index}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.3 }}
+                      className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
                     >
-                      {isAgentConnected ? (
-                        <span className="flex items-center justify-center gap-2">
-                          <PhoneOff className="w-4 h-4" />
-                          End Session
-                        </span>
-                      ) : (
-                        <span className="flex items-center justify-center gap-2">
-                          <Mic className="w-4 h-4" />
-                          Start Conversation Session
-                        </span>
-                      )}
-                    </button>
-
-                    {!config.elevenlabs.agentId && useWebSocket && (
-                      <p className="text-xs text-amber-600 text-center">
-                        ⚠️ Configure NEXT_PUBLIC_ELEVENLABS_AGENT_ID in .env.local
-                      </p>
-                    )}
-
-                    {isAgentConnected && (
-                      <div className="bg-blue-500/10 border border-blue-500/50 rounded-lg p-3">
-                        <p className="text-blue-600 text-xs text-center">
-                          🎙️ Session active - Just start speaking naturally!
+                      <div className={`max-w-[85%] rounded-lg p-3 ${
+                        message.role === 'user'
+                          ? 'bg-blue-500/20 border border-blue-400/50'
+                          : 'bg-purple-500/20 border border-purple-400/50'
+                      }`}>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className={`text-xs font-medium ${
+                            message.role === 'user' ? 'text-blue-400' : 'text-purple-400'
+                          }`}>
+                            {message.role === 'user' ? 'You' : 'EMURA'}
+                          </span>
+                        </div>
+                        <p className="text-sm text-foreground whitespace-pre-wrap break-words">
+                          {message.content}
                         </p>
                       </div>
+                    </motion.div>
+                  ))
+                )}
+                
+                {/* Loading indicator */}
+                {(isProcessing || isAgentSpeaking) && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="flex justify-start"
+                  >
+                    <div className="bg-purple-500/20 border border-purple-400/50 rounded-lg p-3">
+                      <div className="flex items-center gap-2">
+                        <div className="flex gap-1">
+                          <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" />
+                          <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce delay-100" />
+                          <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce delay-200" />
+                        </div>
+                        <span className="text-xs text-purple-400">
+                          {isAgentSpeaking ? "EMURA is speaking..." : "EMURA is thinking..."}
+                        </span>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+                
+                {/* Auto-scroll anchor */}
+                <div ref={chatMessagesEndRef} />
+              </div>
+
+              {/* Chat Input */}
+              <div className="p-4 border-t">
+                <PromptInput
+                  value={chatInputValue}
+                  onValueChange={setChatInputValue}
+                  isLoading={isProcessing || isAgentSpeaking}
+                  onSubmit={() => {
+                    const message = chatInputValue.trim();
+                    if (message) {
+                      // Add user message to chat
+                      setMessages(prev => [...prev, { role: 'user', content: message }]);
+                      
+                      // Send to agent if connected, otherwise use legacy mode
+                      if (useWebSocket && isAgentConnected) {
+                        sendContextualUpdate(message);
+                      } else {
+                        processMessage(message);
+                      }
+                      
+                      // Clear input
+                      setChatInputValue('');
+                    }
+                  }}
+                >
+                  <PromptInputTextarea 
+                    placeholder="Type a message to EMURA..." 
+                    className="min-h-[60px] resize-none"
+                    disabled={!isAgentConnected && useWebSocket}
+                  />
+                  <PromptInputActions>
+                    <PromptInputAction tooltip="Send Message">
+                      <Button 
+                        size="sm"
+                        type="submit"
+                        disabled={!isAgentConnected && useWebSocket || !chatInputValue.trim()}
+                      >
+                        <ArrowUp className="w-4 h-4" />
+                      </Button>
+                    </PromptInputAction>
+                    {isAgentConnected && isAgentSpeaking && (
+                      <PromptInputAction tooltip="Stop Speaking">
+                        <Button 
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => {
+                            interruptAgent();
+                            setIsSpeaking(false);
+                          }}
+                        >
+                          <Square className="w-4 h-4" />
+                        </Button>
+                      </PromptInputAction>
                     )}
-                  </div>
-                </div>
-              )}
+                  </PromptInputActions>
+                </PromptInput>
+                
+
+              </div>
             </div>
                     </motion.div>
           </div>
@@ -1032,16 +1029,31 @@ export default function CallPage() {
               <Dock
                 className="w-auto h-auto"
                 items={[
-                  {
-                    icon: isMicOn ? Mic : MicOff,
-                    label: isMicOn ? "Mute" : "Unmute",
-                    onClick: () => {
-                      const newMicState = !isMicOn;
-                      console.log(newMicState ? '🎤 Microphone unmuted' : '🔇 Microphone muted - audio chunks will not be sent');
-                      setIsMicOn(newMicState);
-                    },
-                    isActive: isMicOn
-                  },
+                  // Start/End/Mute cluster
+                  !isAgentConnected
+                    ? {
+                        icon: Phone,
+                        label: "Start session",
+                        onClick: handleToggleConversation,
+                        isActive: false
+                      }
+                    : {
+                        icon: isMicOn ? Mic : MicOff,
+                        label: isMicOn ? "Mute" : "Unmute",
+                        onClick: () => setIsMicOn(prev => !prev),
+                        isActive: !isMicOn,
+                      },
+                  // End call (visible only when connected)
+                  ...(isAgentConnected
+                    ? [
+                        {
+                          icon: PhoneOff,
+                          label: "End call",
+                          onClick: handleToggleConversation,
+                          isActive: true
+                        }
+                      ]
+                    : []),
                   {
                     icon: isVideoOn ? Video : VideoOff,
                     label: isVideoOn ? "Turn off camera" : "Turn on camera",
@@ -1060,15 +1072,10 @@ export default function CallPage() {
                     onClick: () => setViewMode(viewMode === "pip" ? "split" : "pip")
                   },
                   {
-                    icon: PhoneOff,
-                    label: "End call",
-                    onClick: () => window.location.href = '/'
-                  },
-                  {
-                    icon: MoreVertical,
-                    label: isSettingsOpen ? "Close settings" : "Settings",
-                    onClick: () => setIsSettingsOpen(!isSettingsOpen),
-                    isActive: isSettingsOpen
+                    icon: MessageSquare,
+                    label: showHistory ? "Close chat history" : "Show chat history",
+                    onClick: () => setShowHistory(!showHistory),
+                    isActive: showHistory
                   }
                 ]}
               />

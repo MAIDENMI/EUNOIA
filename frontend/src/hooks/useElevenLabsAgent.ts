@@ -227,8 +227,26 @@ export const useElevenLabsAgent = (options: UseElevenLabsAgentOptions = {}) => {
 
   const stopConversation = useCallback(async () => {
     if (!websocketRef.current) return;
+    
+    console.log('🛑 Ending ElevenLabs conversation session...');
+    
+    // Send end of conversation message to properly terminate the session
+    try {
+      sendMessage(websocketRef.current, {
+        type: "end_of_conversation",
+      });
+      console.log('✅ Sent end_of_conversation message');
+      
+      // Wait a brief moment for the message to be sent
+      await new Promise(resolve => setTimeout(resolve, 500));
+    } catch (error) {
+      console.error('Error sending end_of_conversation:', error);
+    }
+    
+    // Now close the WebSocket connection
     websocketRef.current.close();
     clearQueue();
+    console.log('🔌 WebSocket closed');
   }, [clearQueue]);
 
   const sendContextualUpdate = useCallback((text: string) => {

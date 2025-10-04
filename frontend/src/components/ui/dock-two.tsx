@@ -35,6 +35,7 @@ const floatingAnimation = {
 
 const DockIconButton = React.forwardRef<HTMLButtonElement, DockIconButtonProps>(
   ({ icon: Icon, label, onClick, className, isActive }, ref) => {
+    const isStartSession = label === "Start session"
     const isEndCall = label === "End call"
     const isMicButton = label.includes("Mute") || label.includes("mute")
     const isVideoButton = label.includes("camera")
@@ -51,7 +52,9 @@ const DockIconButton = React.forwardRef<HTMLButtonElement, DockIconButtonProps>(
         onClick={onClick}
         className={cn(
           "relative group p-3 rounded-full transition-all",
-          isEndCall 
+          isStartSession
+            ? "bg-green-600 hover:bg-green-700 text-white"
+            : isEndCall 
             ? "bg-red-600 hover:bg-red-700 text-white"
             : isOff
             ? "bg-red-600 hover:bg-red-700 text-white"
