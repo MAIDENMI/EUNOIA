@@ -281,6 +281,39 @@ export default function CallPage() {
             className="overflow-hidden"
           >
             <div className="bg-muted/30 backdrop-blur-sm border rounded-lg p-4 mb-4 space-y-4">
+              {/* Chat Input */}
+              <div>
+                <div className="text-sm font-medium mb-2">Tell Avatar What to Say</div>
+                <PromptInput
+                  value={chatInput}
+                  onValueChange={setChatInput}
+                  isLoading={isSpeaking}
+                  onSubmit={handleChatSubmit}
+                  className="w-full"
+                >
+                  <PromptInputTextarea placeholder="Type a message for the avatar..." />
+                  <PromptInputActions className="justify-end pt-2">
+                    <PromptInputAction
+                      tooltip={isSpeaking ? "Speaking..." : "Send message"}
+                    >
+                      <Button
+                        variant="default"
+                        size="icon"
+                        className="h-8 w-8 rounded-full"
+                        onClick={handleChatSubmit}
+                        disabled={isSpeaking || !chatInput.trim()}
+                      >
+                        {isSpeaking ? (
+                          <Square className="size-5 fill-current" />
+                        ) : (
+                          <ArrowUp className="size-5" />
+                        )}
+                      </Button>
+                    </PromptInputAction>
+                  </PromptInputActions>
+                </PromptInput>
+              </div>
+
               {/* Voice Provider Selection */}
               <div>
                 <div className="text-sm font-medium mb-2">Voice Provider</div>
@@ -359,7 +392,7 @@ export default function CallPage() {
                 
                 {/* Captions - Bottom Left */}
                 {isCaptionsOn && (
-                  <div className="absolute bottom-24 left-6 max-w-2xl">
+                  <div className="absolute bottom-6 left-6 max-w-2xl">
                     <FadingTextStream 
                       text={isListening ? sampleText : ""}
                       speed={80}
@@ -369,38 +402,6 @@ export default function CallPage() {
                     />
                   </div>
                 )}
-                
-                {/* Chat Input - Bottom Left */}
-                <div className="absolute bottom-6 left-6 w-full max-w-2xl">
-                  <PromptInput
-                    value={chatInput}
-                    onValueChange={setChatInput}
-                    isLoading={isSpeaking}
-                    onSubmit={handleChatSubmit}
-                    className="w-full"
-                  >
-                    <PromptInputTextarea placeholder="Tell the avatar what to say..." />
-                    <PromptInputActions className="justify-end pt-2">
-                      <PromptInputAction
-                        tooltip={isSpeaking ? "Speaking..." : "Send message"}
-                      >
-                        <Button
-                          variant="default"
-                          size="icon"
-                          className="h-8 w-8 rounded-full"
-                          onClick={handleChatSubmit}
-                          disabled={isSpeaking || !chatInput.trim()}
-                        >
-                          {isSpeaking ? (
-                            <Square className="size-5 fill-current" />
-                          ) : (
-                            <ArrowUp className="size-5" />
-                          )}
-                        </Button>
-                      </PromptInputAction>
-                    </PromptInputActions>
-                  </PromptInput>
-                </div>
                 
                 {/* User's Video - Draggable Floating Card */}
                 <motion.div

@@ -461,7 +461,7 @@
           // Use ElevenLabs with stored API key
           const apikey = sessionStorage.getItem('elevenlabs-apikey');
           if (!apikey) {
-            addChatMessage('❌ Please save your ElevenLabs API key first!', 'ai');
+            console.error('❌ Please save your ElevenLabs API key first!');
             speakBtnEl.disabled = false;
             stopBtnEl.disabled = true;
             return;
@@ -500,7 +500,6 @@
         }
       } catch (error) {
         console.error('Speak error:', error);
-        addChatMessage(`Error: ${error.message}`, 'ai');
       } finally {
         speakBtnEl.disabled = false;
         stopBtnEl.disabled = true;
@@ -549,7 +548,6 @@
 
       } catch (error) {
         console.error('AI error:', error);
-        addChatMessage(`Error: ${error.message}`, 'ai');
       } finally {
         aiBtnEl.disabled = false;
         stopBtnEl.disabled = true;
@@ -581,7 +579,7 @@
           head.opt.jwtGet = null;
         }
         
-        addChatMessage('✓ Google API key saved!', 'ai');
+        console.log('✓ Google API key saved!');
         googleApikeyEl.style.borderColor = 'var(--colorBorderActive)';
       }
     }
@@ -602,7 +600,7 @@
         }
         mockElement.value = apikey;
         
-        addChatMessage('✓ ElevenLabs API key saved! Select ElevenLabs voice and speak.', 'ai');
+        console.log('✓ ElevenLabs API key saved! Select ElevenLabs voice and speak.');
         elevenApikeyEl.style.borderColor = 'var(--colorBorderActive)';
       }
     }
@@ -798,11 +796,11 @@
         console.log('✅ Avatar loaded successfully!');
         
         if (savedKeys.eleven) {
-          addChatMessage('✓ Avatar ready with ElevenLabs! Type something and click Speak.', 'ai');
+          console.log('✓ Avatar ready with ElevenLabs! Type something and click Speak.');
         } else if (savedKeys.google) {
-          addChatMessage('✓ Avatar ready with Google TTS! Type something and click Speak.', 'ai');
+          console.log('✓ Avatar ready with Google TTS! Type something and click Speak.');
         } else {
-          addChatMessage('⚠️ Please enter an API key above to enable speech.', 'ai');
+          console.log('⚠️ Please enter an API key above to enable speech.');
         }
 
         // Double click to look at
