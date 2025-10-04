@@ -3,8 +3,10 @@
 import * as React from "react"
 import {
   ArrowUpCircleIcon,
+  ClockIcon,
   HelpCircleIcon,
   LayoutDashboardIcon,
+  MessageCircleIcon,
   SettingsIcon,
 } from "lucide-react"
 
@@ -33,6 +35,16 @@ const data = {
       title: "Dashboard",
       url: "/dashboard",
       icon: LayoutDashboardIcon,
+    },
+    {
+      title: "Session",
+      url: "/session",
+      icon: MessageCircleIcon,
+    },
+    {
+      title: "History",
+      url: "/history",
+      icon: ClockIcon,
     },
     {
       title: "Settings",
