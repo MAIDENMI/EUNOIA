@@ -149,7 +149,7 @@ export default function CallPage() {
       
       {/* Content */}
       <div className="relative z-10 flex items-center justify-center h-full p-8">
-        <Card className="w-full h-full rounded-2xl shadow-lg bg-background flex flex-col px-8 ">
+        <Card className="w-full h-full rounded-2xl shadow-lg bg-background flex flex-col px-6 py-4 gap-1">
           {/* Header with Session Title and Timer */}
           <div className="flex items-center justify-between">
             {/* Session Title */}
