@@ -43,9 +43,18 @@ export default function CallPage() {
   const [voiceProvider, setVoiceProvider] = useState<"google" | "eleven">("google");
   const [chatInput, setChatInput] = useState("");
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [transcript, setTranscript] = useState<string>("");
+  const [aiResponse, setAiResponse] = useState<string>("");
+  const [isRecording, setIsRecording] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [messages, setMessages] = useState<Array<{ role: string; content: string }>>([]);
+  const [permissionError, setPermissionError] = useState<string | null>(null);
+  const [showPermissionHelp, setShowPermissionHelp] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const recognitionRef = useRef<any>(null);
+  const talkingHeadRef = useRef<HTMLIFrameElement>(null);
+  const userId = useRef<string>(`user_${Date.now()}`);
   
   const x = useMotionValue(0);
   const y = useMotionValue(0);
@@ -251,7 +260,7 @@ export default function CallPage() {
 
   const postToIframe = (type: string, payload?: any) => {
     try {
-      const target = iframeRef.current?.contentWindow;
+      const target = talkingHeadRef.current?.contentWindow;
       if (!target) return;
       target.postMessage({ type, payload }, "http://localhost:8080");
     } catch {}
@@ -562,7 +571,7 @@ export default function CallPage() {
               <div ref={containerRef} className="relative w-full h-full bg-gray-900 rounded-xl overflow-hidden">
                 {/* AI Therapist Video - TalkingHead iframe */}
                 <iframe
-                  ref={iframeRef}
+                  ref={talkingHeadRef}
                   onLoad={handleIframeLoad}
                   src="http://localhost:8080/index-modular.html"
                   className="w-full h-full border-0"
@@ -632,7 +641,7 @@ export default function CallPage() {
                 {/* AI Therapist Video - Left Side */}
                 <div className="relative w-1/2 h-full bg-gray-900 rounded-xl overflow-hidden flex items-center justify-center">
                   <iframe
-                    ref={iframeRef}
+                    ref={talkingHeadRef}
                     onLoad={handleIframeLoad}
                     src="http://localhost:8080/index-modular.html"
                     className="w-full h-full border-0"
