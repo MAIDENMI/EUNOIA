@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 
 const INTRO_STYLE_ID = "history-animations";
@@ -69,17 +69,6 @@ const palettes = {
 };
 
 export default function HistoryPage() {
-  const getRootTheme = () => {
-    if (typeof document === "undefined") return "dark";
-    if (document.documentElement.classList.contains("dark")) return "dark";
-    if (document.documentElement.classList.contains("light")) return "light";
-    if (typeof window !== "undefined" && window.matchMedia) {
-      return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-    }
-    return "light";
-  };
-
-  const [theme, setTheme] = useState<"dark" | "light">(getRootTheme);
   const [introReady, setIntroReady] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const [hasEntered, setHasEntered] = useState(false);
@@ -226,45 +215,8 @@ export default function HistoryPage() {
     return () => window.cancelAnimationFrame(frame);
   }, []);
 
-  useEffect(() => {
-    if (typeof document === "undefined") return;
+  const palette = palettes.light;
 
-    const applyThemeFromRoot = () => setTheme(getRootTheme());
-
-    applyThemeFromRoot();
-
-    const observer = new MutationObserver(applyThemeFromRoot);
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ["class", "data-theme"],
-    });
-
-    const handleStorage = (event: StorageEvent) => {
-      if (event.key === "bento-theme") applyThemeFromRoot();
-    };
-
-    window.addEventListener("storage", handleStorage);
-
-    return () => {
-      observer.disconnect();
-      window.removeEventListener("storage", handleStorage);
-    };
-  }, []);
-
-  const palette = useMemo(() => palettes[theme], [theme]);
-
-  const toggleTheme = () => {
-    if (typeof document === "undefined") return;
-    const root = document.documentElement;
-    const next = root.classList.contains("dark") ? "light" : "dark";
-    root.classList.toggle("dark", next === "dark");
-    setTheme(next);
-    try {
-      window.localStorage?.setItem("bento-theme", next);
-    } catch (_err) {
-      /* ignore */
-    }
-  };
   const toggleQuestion = (index: number) => setActiveIndex((prev) => (prev === index ? -1 : index));
 
   useEffect(() => {
@@ -308,7 +260,7 @@ export default function HistoryPage() {
       <div className="absolute inset-0 z-0" style={{ background: palette.aurora }} />
       <div
         className="pointer-events-none absolute inset-0 z-0 opacity-80"
-        style={{ background: palette.overlay, mixBlendMode: theme === "dark" ? "screen" : "multiply" }}
+        style={{ background: palette.overlay, mixBlendMode: "multiply" }}
       />
 
           <section
@@ -322,10 +274,10 @@ export default function HistoryPage() {
                   <p className={`text-[10px] uppercase tracking-[0.35em] ${palette.muted}`}>Your Journey</p>
                   <Link
                     href="/session"
-                    className={`md:hidden relative inline-flex h-7 items-center gap-1.5 rounded-full border px-3 text-[10px] font-medium transition-colors duration-500 hover:opacity-80 ${palette.toggleSurface} ${palette.toggle}`}
+                    className={`md:hidden relative overflow-hidden inline-flex h-8 items-center gap-1.5 rounded-2xl border backdrop-blur-xl px-3 text-[10px] font-medium transition-all duration-300 hover:-translate-y-0.5 border-purple-500/30 bg-purple-600/10 text-purple-600 hover:bg-purple-600/20 hover:border-purple-500/50 hover:shadow-lg hover:shadow-purple-500/20 ${palette.shadow}`}
                   >
                     <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
                     </svg>
                     New Session
                   </Link>
@@ -340,10 +292,10 @@ export default function HistoryPage() {
 
               <Link
                 href="/session"
-                className={`hidden md:inline-flex relative h-8 items-center gap-2 rounded-full border px-4 text-[10px] font-medium transition-colors duration-500 hover:opacity-80 ${palette.toggleSurface} ${palette.toggle}`}
+                className={`hidden md:inline-flex relative overflow-hidden h-9 items-center gap-2 rounded-2xl border backdrop-blur-xl px-4 text-[10px] font-medium transition-all duration-300 hover:-translate-y-0.5 hover:scale-105 border-purple-500/30 bg-purple-600/10 text-purple-600 hover:bg-purple-600/20 hover:border-purple-500/50 hover:shadow-lg hover:shadow-purple-500/20 ${palette.shadow}`}
               >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
                 </svg>
                 Start New Session
               </Link>
@@ -351,7 +303,7 @@ export default function HistoryPage() {
 
             <div className="grid grid-cols-1 lg:grid-cols-[1fr_2fr] gap-4 items-start flex-1 overflow-hidden">
               {/* Session List */}
-              <div className="overflow-y-auto h-full pr-2" style={{ scrollbarWidth: 'thin', scrollbarColor: theme === 'dark' ? 'rgba(255,255,255,0.15) transparent' : 'rgba(0,0,0,0.15) transparent' }}>
+              <div className="overflow-y-auto h-full pr-2" style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(0,0,0,0.15) transparent' }}>
                 <ul className="space-y-2.5">
               {sessionHistory.map((item, index) => {
                 const open = activeIndex === index;
@@ -380,7 +332,7 @@ export default function HistoryPage() {
                       aria-controls={panelId}
                       aria-expanded={open}
                       onClick={() => toggleQuestion(index)}
-                      style={{ "--history-outline": theme === "dark" ? "rgba(255,255,255,0.35)" : "rgba(17,17,17,0.25)" } as React.CSSProperties}
+                      style={{ "--history-outline": "rgba(17,17,17,0.25)" } as React.CSSProperties}
                       className="relative flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--history-outline)]"
                     >
                       <span
@@ -433,7 +385,7 @@ export default function HistoryPage() {
 
               {/* Conversation Viewer */}
               <div className={`relative overflow-hidden rounded-2xl border ${palette.border} h-full`}
-                style={{ background: theme === "dark" ? "rgba(0,0,0,0.3)" : "rgba(255,255,255,0.5)", backdropFilter: "blur(20px)" }}
+                style={{ background: "rgba(255,255,255,0.5)", backdropFilter: "blur(20px)" }}
               >
                 <div className="flex flex-col h-full">
                   {/* Header */}
@@ -453,7 +405,7 @@ export default function HistoryPage() {
                   </div>
 
                   {/* Conversation Content */}
-                  <div className="flex-1 overflow-y-auto px-5 py-4" style={{ scrollbarWidth: 'thin', scrollbarColor: theme === 'dark' ? 'rgba(255,255,255,0.15) transparent' : 'rgba(0,0,0,0.15) transparent' }}>
+                  <div className="flex-1 overflow-y-auto px-5 py-4" style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(0,0,0,0.15) transparent' }}>
                     {activeIndex >= 0 ? (
                       <div className="space-y-4 max-w-3xl">
                         {/* Timestamp header */}
