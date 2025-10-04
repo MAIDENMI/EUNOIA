@@ -10,6 +10,7 @@ export default function CallPage() {
   const [isListening] = useState(false);
   const [audioLevel] = useState(0);
   const [viewMode, setViewMode] = useState<"pip" | "split">("pip"); // pip = picture-in-picture, split = 50/50
+  const [stream, setStream] = useState<MediaStream | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   
@@ -58,17 +59,15 @@ export default function CallPage() {
     animate(y, snapY, { type: "spring", stiffness: 300, damping: 30 });
   };
 
+  // Setup webcam once on mount
   useEffect(() => {
-    // Access user's webcam
     async function setupCamera() {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ 
+        const mediaStream = await navigator.mediaDevices.getUserMedia({ 
           video: true, 
           audio: false 
         });
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-        }
+        setStream(mediaStream);
       } catch (error) {
         console.error("Error accessing webcam:", error);
       }
@@ -78,12 +77,18 @@ export default function CallPage() {
 
     // Cleanup function to stop the video stream
     return () => {
-      if (videoRef.current?.srcObject) {
-        const stream = videoRef.current.srcObject as MediaStream;
+      if (stream) {
         stream.getTracks().forEach(track => track.stop());
       }
     };
   }, []);
+
+  // Apply stream to video element whenever it changes
+  useEffect(() => {
+    if (videoRef.current && stream) {
+      videoRef.current.srcObject = stream;
+    }
+  }, [stream, viewMode]);
 
   return (
     <div className="relative w-full h-screen overflow-hidden">
