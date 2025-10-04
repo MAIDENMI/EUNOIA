@@ -16,6 +16,7 @@ interface UseElevenLabsAgentOptions {
   agentId?: string;
   signedUrl?: string;
   useAgentAudio?: boolean; // If false, only transcripts are used (for external TTS like TalkingHead)
+  isMuted?: boolean; // If true, don't send audio chunks to agent
   onUserTranscript?: (transcript: string) => void;
   onAgentResponse?: (response: string) => void;
   onAgentResponseCorrection?: (original: string, corrected: string) => void;
@@ -29,6 +30,7 @@ export const useElevenLabsAgent = (options: UseElevenLabsAgentOptions = {}) => {
     agentId,
     signedUrl,
     useAgentAudio = false, // Default to false - use external TTS
+    isMuted = false,
     onUserTranscript,
     onAgentResponse,
     onAgentResponseCorrection,
@@ -41,10 +43,25 @@ export const useElevenLabsAgent = (options: UseElevenLabsAgentOptions = {}) => {
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const { enqueueAudio, clearQueue, stopCurrentAudio, isPlaying } = useWebAudioQueue();
+  
+  // Use ref to always get current value in WebSocket handler
+  const useAgentAudioRef = useRef(useAgentAudio);
+  useAgentAudioRef.current = useAgentAudio;
 
   const { startStreaming, stopStreaming } = useVoiceStream({
     onAudioChunked: (audioData) => {
-      if (!websocketRef.current) return;
+      if (!websocketRef.current) {
+        console.warn('⚠️ WebSocket not connected, cannot send audio chunk');
+        return;
+      }
+      
+      // Don't send audio if user is muted
+      if (isMuted) {
+        console.log('🔇 Microphone muted - not sending audio chunk');
+        return;
+      }
+      
+      console.log('🎤 Sending audio chunk to agent, size:', audioData.length, 'bytes');
       sendMessage(websocketRef.current, {
         user_audio_chunk: audioData,
       });
@@ -142,17 +159,19 @@ export const useElevenLabsAgent = (options: UseElevenLabsAgentOptions = {}) => {
           // Handle audio response
           if (data.type === "audio") {
             const { audio_event } = data;
+            const currentUseAgentAudio = useAgentAudioRef.current;
+            
             console.log('🎵 Received audio chunk:', {
               eventId: audio_event.event_id,
               audioLength: audio_event.audio_base_64?.length || 0,
               hasAudioData: !!audio_event.audio_base_64,
-              useAgentAudio,
+              useAgentAudio: currentUseAgentAudio,
             });
             
             if (audio_event.audio_base_64) {
               // If using agent audio, enqueue for playback
-              if (useAgentAudio) {
-                console.log('🔊 Using ElevenLabs agent audio');
+              if (currentUseAgentAudio) {
+                console.log('🔊 Using ElevenLabs agent audio - playing through Web Audio');
                 enqueueAudio(audio_event.audio_base_64);
               } else {
                 console.log('🔇 Ignoring ElevenLabs audio (using external TTS)');
@@ -193,6 +212,7 @@ export const useElevenLabsAgent = (options: UseElevenLabsAgentOptions = {}) => {
     isConnected,
     agentId,
     signedUrl,
+    useAgentAudio,
     startStreaming,
     stopStreaming,
     onUserTranscript,
@@ -200,6 +220,7 @@ export const useElevenLabsAgent = (options: UseElevenLabsAgentOptions = {}) => {
     onAgentResponseCorrection,
     onInterruption,
     onConnectionStatusChange,
+    onAudioReceived,
     enqueueAudio,
     clearQueue,
   ]);

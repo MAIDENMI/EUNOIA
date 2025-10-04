@@ -19,42 +19,89 @@ export const useWebAudioQueue = () => {
     return audioContextRef.current;
   }, []);
 
-  const playAudioBuffer = useCallback(async (arrayBuffer: ArrayBuffer): Promise<void> => {
+  const playAudioBuffer = useCallback(async (arrayBuffer: ArrayBuffer, isPCM: boolean = false): Promise<void> => {
     return new Promise((resolve, reject) => {
       try {
         const audioContext = getAudioContext();
         
-        console.log('🔊 Decoding audio buffer, size:', arrayBuffer.byteLength);
+        console.log('🔊 Processing audio buffer, size:', arrayBuffer.byteLength, 'isPCM:', isPCM);
 
-        audioContext.decodeAudioData(
-          arrayBuffer,
-          (audioBuffer) => {
-            console.log('✅ Audio decoded successfully:', {
-              duration: audioBuffer.duration,
-              channels: audioBuffer.numberOfChannels,
-              sampleRate: audioBuffer.sampleRate,
-            });
-
-            const source = audioContext.createBufferSource();
-            source.buffer = audioBuffer;
-            source.connect(audioContext.destination);
-            
-            currentSourceRef.current = source;
-
-            source.onended = () => {
-              console.log('✅ Audio playback finished');
-              currentSourceRef.current = null;
-              resolve();
-            };
-
-            console.log('🔊 Starting Web Audio playback...');
-            source.start(0);
-          },
-          (error) => {
-            console.error('❌ Audio decode error:', error);
-            reject(new Error(`Failed to decode audio: ${error.message || error}`));
+        if (isPCM) {
+          // Handle raw PCM audio (common for ElevenLabs WebSocket)
+          // ElevenLabs typically sends 16-bit PCM at 16000 Hz, mono
+          const sampleRate = 16000; // ElevenLabs default
+          const numberOfChannels = 1; // Mono
+          
+          // Convert Int16 PCM to Float32 for Web Audio API
+          const int16Array = new Int16Array(arrayBuffer);
+          const float32Array = new Float32Array(int16Array.length);
+          
+          for (let i = 0; i < int16Array.length; i++) {
+            // Convert from Int16 (-32768 to 32767) to Float32 (-1.0 to 1.0)
+            float32Array[i] = int16Array[i] / 32768.0;
           }
-        );
+          
+          const audioBuffer = audioContext.createBuffer(
+            numberOfChannels,
+            float32Array.length,
+            sampleRate
+          );
+          
+          audioBuffer.getChannelData(0).set(float32Array);
+          
+          console.log('✅ PCM audio buffer created:', {
+            duration: audioBuffer.duration,
+            channels: audioBuffer.numberOfChannels,
+            sampleRate: audioBuffer.sampleRate,
+            samples: float32Array.length,
+          });
+
+          const source = audioContext.createBufferSource();
+          source.buffer = audioBuffer;
+          source.connect(audioContext.destination);
+          
+          currentSourceRef.current = source;
+
+          source.onended = () => {
+            console.log('✅ Audio playback finished');
+            currentSourceRef.current = null;
+            resolve();
+          };
+
+          console.log('🔊 Starting PCM audio playback...');
+          source.start(0);
+        } else {
+          // Handle encoded audio formats (MP3, WAV, OGG, etc.)
+          audioContext.decodeAudioData(
+            arrayBuffer,
+            (audioBuffer) => {
+              console.log('✅ Audio decoded successfully:', {
+                duration: audioBuffer.duration,
+                channels: audioBuffer.numberOfChannels,
+                sampleRate: audioBuffer.sampleRate,
+              });
+
+              const source = audioContext.createBufferSource();
+              source.buffer = audioBuffer;
+              source.connect(audioContext.destination);
+              
+              currentSourceRef.current = source;
+
+              source.onended = () => {
+                console.log('✅ Audio playback finished');
+                currentSourceRef.current = null;
+                resolve();
+              };
+
+              console.log('🔊 Starting Web Audio playback...');
+              source.start(0);
+            },
+            (error) => {
+              console.error('❌ Audio decode error:', error);
+              reject(new Error(`Failed to decode audio: ${error.message || error}`));
+            }
+          );
+        }
       } catch (error) {
         console.error('❌ Error in playAudioBuffer:', error);
         reject(error);
@@ -62,7 +109,7 @@ export const useWebAudioQueue = () => {
     });
   }, [getAudioContext]);
 
-  const playAudioFromBase64 = useCallback(async (base64Audio: string): Promise<void> => {
+  const playAudioFromBase64 = useCallback(async (base64Audio: string, isPCM: boolean = true): Promise<void> => {
     try {
       console.log('🔊 Converting base64 to ArrayBuffer, length:', base64Audio.length);
       
@@ -77,7 +124,7 @@ export const useWebAudioQueue = () => {
         Array.from(bytes.slice(0, 8)).map(b => '0x' + b.toString(16).padStart(2, '0')).join(' ')
       );
       
-      await playAudioBuffer(bytes.buffer);
+      await playAudioBuffer(bytes.buffer, isPCM);
     } catch (error) {
       console.error('❌ Error in playAudioFromBase64:', error);
       throw error;
@@ -96,7 +143,8 @@ export const useWebAudioQueue = () => {
       const audioBuffer = queueRef.current.shift();
       if (audioBuffer) {
         try {
-          await playAudioBuffer(audioBuffer);
+          // ElevenLabs WebSocket sends PCM audio
+          await playAudioBuffer(audioBuffer, true);
         } catch (error) {
           console.error('❌ Error playing audio chunk:', error instanceof Error ? error.message : error);
           // Continue to next chunk even if one fails
