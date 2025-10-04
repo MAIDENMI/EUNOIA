@@ -39,7 +39,7 @@ export default function CallPage() {
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [isMicOn, setIsMicOn] = useState(true);
   const [isVideoOn, setIsVideoOn] = useState(true);
-  const [isCaptionsOn, setIsCaptionsOn] = useState(true);
+  const [isCaptionsOn, setIsCaptionsOn] = useState(false);
   const [callTime, setCallTime] = useState(0);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
@@ -54,6 +54,7 @@ export default function CallPage() {
   const [permissionError, setPermissionError] = useState<string | null>(null);
   const [showPermissionHelp, setShowPermissionHelp] = useState(false);
   const [chatInputValue, setChatInputValue] = useState("");
+  const [isAvatarReady, setIsAvatarReady] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
@@ -430,7 +431,13 @@ export default function CallPage() {
   };
 
   const handleIframeLoad = () => {
+    console.log('🎬 TalkingHead iframe loaded');
     applySettingsToIframe();
+    // Mark avatar as ready after iframe loads and initializes
+    setTimeout(() => {
+      console.log('✅ Setting avatar as ready');
+      setIsAvatarReady(true);
+    }, 1500);
   };
 
   const handleVoiceChange = (val: "google" | "eleven") => {
@@ -661,6 +668,18 @@ export default function CallPage() {
     chatMessagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isProcessing, isAgentSpeaking]);
 
+  // Fallback: force avatar ready after max wait time
+  useEffect(() => {
+    const fallbackTimer = setTimeout(() => {
+      if (!isAvatarReady) {
+        console.log('⏰ Fallback: Setting avatar as ready after timeout');
+        setIsAvatarReady(true);
+      }
+    }, 3000);
+
+    return () => clearTimeout(fallbackTimer);
+  }, [isAvatarReady]);
+
   return (
     <div className="relative w-full h-screen overflow-hidden">
       {/* Gradient Background */}
@@ -730,9 +749,27 @@ export default function CallPage() {
                   ref={talkingHeadRef}
                   onLoad={handleIframeLoad}
                   src="http://localhost:8080/index-modular.html"
-                  className="w-full h-full border-0"
+                  className={`w-full h-full border-0 transition-opacity duration-700 ${
+                    isAvatarReady ? 'opacity-100' : 'opacity-0'
+                  }`}
                   allow="camera; microphone; autoplay; fullscreen"
                 />
+
+                {/* Loading Overlay */}
+                {!isAvatarReady && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-gray-900">
+                    <div className="flex flex-col items-center gap-4">
+                      <div className="relative w-16 h-16">
+                        <div className="absolute inset-0 rounded-full border-4 border-purple-500/20"></div>
+                        <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-purple-500 animate-spin"></div>
+                      </div>
+                      <div className="text-center space-y-1">
+                        <p className="text-sm font-medium text-white">Loading Avatar</p>
+                        <p className="text-xs text-gray-400">Preparing your session...</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Captions - Bottom Left */}
                 {isCaptionsOn && (
@@ -820,9 +857,27 @@ export default function CallPage() {
                     ref={talkingHeadRef}
                     onLoad={handleIframeLoad}
                     src="http://localhost:8080/index-modular.html"
-                    className="w-full h-full border-0"
+                    className={`w-full h-full border-0 transition-opacity duration-700 ${
+                      isAvatarReady ? 'opacity-100' : 'opacity-0'
+                    }`}
                     allow="camera; microphone; autoplay; fullscreen"
                   />
+
+                  {/* Loading Overlay */}
+                  {!isAvatarReady && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-gray-900">
+                      <div className="flex flex-col items-center gap-4">
+                        <div className="relative w-16 h-16">
+                          <div className="absolute inset-0 rounded-full border-4 border-purple-500/20"></div>
+                          <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-purple-500 animate-spin"></div>
+                        </div>
+                        <div className="text-center space-y-1">
+                          <p className="text-sm font-medium text-white">Loading Avatar</p>
+                          <p className="text-xs text-gray-400">Preparing your session...</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                   
                   {/* Captions - Bottom Left */}
                   {isCaptionsOn && (
@@ -897,67 +952,78 @@ export default function CallPage() {
               </div>
 
               {/* Chat Messages Container */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              <div className="flex-1 overflow-y-auto px-5 py-4" style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(0,0,0,0.15) transparent' }}>
                 {messages.length === 0 ? (
                   <div className="flex items-center justify-center h-full">
-                    <div className="text-center text-muted-foreground text-sm">
-                      <p className="mb-2">No messages yet</p>
-                      <p className="text-xs">Click the phone icon to start</p>
+                    <div className="text-center space-y-2">
+                      <p className="text-sm text-muted-foreground">No messages yet</p>
+                      <p className="text-xs text-muted-foreground">Start a session to begin</p>
                     </div>
                   </div>
                 ) : (
-                  messages.map((message, index) => (
-                    <motion.div
-                      key={index}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.3 }}
-                      className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                    >
-                      <div className={`max-w-[85%] rounded-lg p-3 ${
-                        message.role === 'user'
-                          ? 'bg-blue-500/20 border border-blue-400/50'
-                          : 'bg-purple-500/20 border border-purple-400/50'
-                      }`}>
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className={`text-xs font-medium ${
-                            message.role === 'user' ? 'text-blue-400' : 'text-purple-400'
+                  <div className="space-y-4 max-w-3xl">
+                    {/* Timestamp header */}
+                    <div className="text-[9px] uppercase tracking-wider text-muted-foreground pb-2 border-b">
+                      {new Date().toLocaleDateString('en-US', { 
+                        month: 'long', 
+                        day: 'numeric', 
+                        year: 'numeric' 
+                      }).toUpperCase()} • {new Date().toLocaleTimeString('en-US', { 
+                        hour: 'numeric', 
+                        minute: '2-digit',
+                        hour12: true 
+                      })}
+                    </div>
+
+                    {/* Message exchange */}
+                    <div className="space-y-4">
+                      {messages.map((message, index) => (
+                        <motion.div
+                          key={index}
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.3 }}
+                          className={message.role === 'user' ? 'space-y-1.5' : 'border-l-2 border-purple-500/30 pl-4 space-y-1.5'}
+                        >
+                          <div className={`text-[10px] font-medium uppercase tracking-wider ${
+                            message.role === 'user' ? 'text-blue-500' : 'text-purple-500'
                           }`}>
                             {message.role === 'user' ? 'You' : 'EMURA'}
-                          </span>
-                        </div>
-                        <p className="text-sm text-foreground whitespace-pre-wrap break-words">
-                          {message.content}
-                        </p>
-                      </div>
-                    </motion.div>
-                  ))
-                )}
-                
-                {/* Loading indicator */}
-                {(isProcessing || isAgentSpeaking) && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="flex justify-start"
-                  >
-                    <div className="bg-purple-500/20 border border-purple-400/50 rounded-lg p-3">
-                      <div className="flex items-center gap-2">
-                        <div className="flex gap-1">
-                          <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" />
-                          <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce delay-100" />
-                          <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce delay-200" />
-                        </div>
-                        <span className="text-xs text-purple-400">
-                          {isAgentSpeaking ? "EMURA is speaking..." : "EMURA is thinking..."}
-                        </span>
-                      </div>
+                          </div>
+                          <div className="text-sm leading-relaxed text-foreground whitespace-pre-wrap break-words">
+                            {message.content}
+                          </div>
+                        </motion.div>
+                      ))}
+                      
+                      {/* Loading indicator */}
+                      {(isProcessing || isAgentSpeaking) && (
+                        <motion.div
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="border-l-2 border-purple-500/30 pl-4 space-y-1.5"
+                        >
+                          <div className="text-[10px] font-medium uppercase tracking-wider text-purple-500">
+                            EMURA
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div className="flex gap-1">
+                              <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" />
+                              <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce delay-100" />
+                              <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce delay-200" />
+                            </div>
+                            <span className="text-xs text-purple-500/70">
+                              {isAgentSpeaking ? "speaking..." : "thinking..."}
+                            </span>
+                          </div>
+                        </motion.div>
+                      )}
                     </div>
-                  </motion.div>
+                    
+                    {/* Auto-scroll anchor */}
+                    <div ref={chatMessagesEndRef} />
+                  </div>
                 )}
-                
-                {/* Auto-scroll anchor */}
-                <div ref={chatMessagesEndRef} />
               </div>
 
               {/* Chat Input */}
