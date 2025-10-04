@@ -5,7 +5,6 @@ import {
   ArrowUpCircleIcon,
   ClockIcon,
   HelpCircleIcon,
-  LayoutDashboardIcon,
   MessageCircleIcon,
   SettingsIcon,
 } from "lucide-react"
@@ -31,11 +30,6 @@ const data = {
     avatar: "",
   },
   navMain: [
-    {
-      title: "Dashboard",
-      url: "/dashboard",
-      icon: LayoutDashboardIcon,
-    },
     {
       title: "Session",
       url: "/session",

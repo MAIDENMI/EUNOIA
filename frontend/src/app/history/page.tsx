@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
+import AnimatedGradientBackground from "@/components/ui/animated-gradient-background";
 
 const INTRO_STYLE_ID = "history-animations";
 
@@ -257,10 +258,24 @@ export default function HistoryPage() {
 
   return (
     <div className={`relative h-screen w-full overflow-hidden transition-colors duration-700 ${palette.surface}`}>
-      <div className="absolute inset-0 z-0" style={{ background: palette.aurora }} />
-      <div
-        className="pointer-events-none absolute inset-0 z-0 opacity-80"
-        style={{ background: palette.overlay, mixBlendMode: "multiply" }}
+      {/* Violet Gradient Background */}
+      <AnimatedGradientBackground
+        gradientColors={[
+          "#FFFFFF",
+          "#9C27B0", // Purple
+          "#7B1FA2", // Deep purple  
+          "#8E24AA", // Purple
+          "#AB47BC", // Light purple
+          "#BA68C8", // Lighter purple
+          "#CE93D8", // Soft purple
+          "transparent"
+        ]}
+        gradientStops={[35, 50, 60, 70, 80, 90, 95, 100]}
+        isListening={false}
+        Breathing={true}
+        startingGap={180}
+        breathingRange={15}
+        topOffset={0}
       />
 
           <section
@@ -313,7 +328,8 @@ export default function HistoryPage() {
                 return (
                   <li
                     key={item.question}
-                    className={`group relative overflow-hidden rounded-2xl border backdrop-blur-xl transition-all duration-300 hover:-translate-y-0.5 focus-within:-translate-y-0.5 ${palette.border} ${palette.panel} ${palette.shadow}`}
+                    className={`group relative overflow-hidden rounded-2xl border backdrop-blur-2xl transition-all duration-300 hover:-translate-y-0.5 focus-within:-translate-y-0.5 ${palette.border} ${palette.shadow}`}
+                    style={{ background: "rgba(255, 255, 255, 0.4)" }}
                     onMouseMove={setCardGlow}
                     onMouseLeave={clearCardGlow}
                   >

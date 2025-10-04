@@ -81,15 +81,9 @@ const Dock = React.forwardRef<HTMLDivElement, DockProps>(
   ({ items, className }, ref) => {
     return (
       <div ref={ref} className={cn("flex items-center justify-center", className)}>
-        <motion.div
-          initial="initial"
-          animate="animate"
-          variants={floatingAnimation}
+        <div
           className={cn(
-            "flex items-center gap-2 px-6 py-3 rounded-full",
-            "backdrop-blur-lg border shadow-2xl",
-            "bg-white/80 border-gray-200/50",
-            "hover:shadow-xl transition-shadow duration-300"
+            "flex items-center gap-2"
           )}
         >
           {items.map((item, index) => (
@@ -101,7 +95,7 @@ const Dock = React.forwardRef<HTMLDivElement, DockProps>(
               )}
             </React.Fragment>
           ))}
-        </motion.div>
+        </div>
       </div>
     )
   }
