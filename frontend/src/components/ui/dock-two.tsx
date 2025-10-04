@@ -9,6 +9,7 @@ interface DockProps {
     icon: LucideIcon
     label: string
     onClick?: () => void
+    isActive?: boolean
   }[]
 }
 
@@ -17,6 +18,7 @@ interface DockIconButtonProps {
   label: string
   onClick?: () => void
   className?: string
+  isActive?: boolean
 }
 
 const floatingAnimation = {
@@ -32,10 +34,14 @@ const floatingAnimation = {
 }
 
 const DockIconButton = React.forwardRef<HTMLButtonElement, DockIconButtonProps>(
-  ({ icon: Icon, label, onClick, className }, ref) => {
+  ({ icon: Icon, label, onClick, className, isActive }, ref) => {
     const isEndCall = label === "End call"
-    const isMuted = label === "Unmute"
-    const isCameraOff = label === "Turn on camera"
+    const isMicButton = label.includes("Mute") || label.includes("mute")
+    const isVideoButton = label.includes("camera")
+    const isCaptionsButton = label.includes("captions")
+    
+    // Determine if button should be red (off state for mic/video, or end call)
+    const isOff = (isMicButton || isVideoButton) && !isActive
     
     return (
       <motion.button
@@ -47,8 +53,10 @@ const DockIconButton = React.forwardRef<HTMLButtonElement, DockIconButtonProps>(
           "relative group p-3 rounded-full transition-all",
           isEndCall 
             ? "bg-red-600 hover:bg-red-700 text-white"
-            : (isMuted || isCameraOff)
+            : isOff
             ? "bg-red-600 hover:bg-red-700 text-white"
+            : (isCaptionsButton && isActive)
+            ? "bg-blue-600 hover:bg-blue-700 text-white"
             : "bg-gray-100 hover:bg-gray-200 text-gray-700",
           className
         )}

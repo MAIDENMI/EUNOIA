@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import AnimatedGradientBackground from "@/components/ui/animated-gradient-background";
 import { Card } from "@/components/ui/card";
 import { Dock } from "@/components/ui/dock-two";
+import { FadingTextStream } from "@/components/ui/fading-text-stream";
 import { motion, useMotionValue, animate } from "framer-motion";
 import { 
   Grid2x2, 
@@ -17,18 +18,36 @@ import {
 } from "lucide-react";
 
 export default function CallPage() {
-  const [isListening] = useState(false);
+  const [isListening] = useState(true); // Set to true for demo
   const [audioLevel] = useState(0);
   const [viewMode, setViewMode] = useState<"pip" | "split">("pip"); // pip = picture-in-picture, split = 50/50
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [isMicOn, setIsMicOn] = useState(true);
   const [isVideoOn, setIsVideoOn] = useState(true);
-  const [isCaptionsOn, setIsCaptionsOn] = useState(false);
+  const [isCaptionsOn, setIsCaptionsOn] = useState(true);
+  const [callTime, setCallTime] = useState(0);
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   
   const x = useMotionValue(0);
   const y = useMotionValue(0);
+  
+  const sampleText = "Hello, I'm speaking to the AI therapist right now. This text shows what I'm saying in real-time as the voice recognition processes my speech. The conversation is flowing naturally and the text continues to appear word by word. This creates a smooth and engaging experience during our therapy session.";
+
+  // Timer for call duration
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      setCallTime((t) => t + 1);
+    }, 1000);
+
+    return () => clearInterval(intervalId);
+  }, []);
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+  };
 
   const handleDragEnd = () => {
     if (!containerRef.current) return;
@@ -78,7 +97,7 @@ export default function CallPage() {
       try {
         const mediaStream = await navigator.mediaDevices.getUserMedia({ 
           video: true, 
-          audio: false 
+          audio: true 
         });
         setStream(mediaStream);
       } catch (error) {
@@ -103,6 +122,26 @@ export default function CallPage() {
     }
   }, [stream, viewMode]);
 
+  // Control video track based on isVideoOn state
+  useEffect(() => {
+    if (stream) {
+      const videoTrack = stream.getVideoTracks()[0];
+      if (videoTrack) {
+        videoTrack.enabled = isVideoOn;
+      }
+    }
+  }, [isVideoOn, stream]);
+
+  // Control audio track based on isMicOn state
+  useEffect(() => {
+    if (stream) {
+      const audioTrack = stream.getAudioTracks()[0];
+      if (audioTrack) {
+        audioTrack.enabled = isMicOn;
+      }
+    }
+  }, [isMicOn, stream]);
+
   return (
     <div className="relative w-full h-screen overflow-hidden">
       {/* Gradient Background */}
@@ -110,9 +149,40 @@ export default function CallPage() {
       
       {/* Content */}
       <div className="relative z-10 flex items-center justify-center h-full p-8">
-        <Card className="w-full h-full rounded-2xl shadow-lg bg-background/60 backdrop-blur-sm flex flex-col px-8 py-8">
+        <Card className="w-full h-full rounded-2xl shadow-lg bg-background flex flex-col px-8 ">
+          {/* Header with Session Title and Timer */}
+          <div className="flex items-center justify-between">
+            {/* Session Title */}
+            <h2 className="text-lg font-medium text-foreground">AI Therapy Session</h2>
+            
+            {/* Timer Pill */}
+            <motion.div
+              className="flex px-4 py-2 border items-center justify-center rounded-full gap-2"
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.3 }}
+            >
+              {/* Recording indicator dot */}
+              <motion.div
+                className="w-2 h-2 bg-red-600 rounded-full"
+                animate={{
+                  opacity: [1, 0.3, 1],
+                }}
+                transition={{
+                  duration: 2,
+                  repeat: Infinity,
+                  ease: "easeInOut",
+                }}
+              />
+              {/* Timer */}
+              <div className="text-sm text-muted-foreground font-mono">
+                {formatTime(callTime)}
+              </div>
+            </motion.div>
+          </div>
+
           {/* Video Area - Takes up remaining space */}
-          <div className="flex-1 flex items-center justify-center mb-6">
+          <div className="flex-1 flex items-start justify-center">
             {/* Picture-in-Picture Mode */}
             {viewMode === "pip" && (
               <div ref={containerRef} className="relative w-full h-full bg-gray-900 rounded-xl overflow-hidden">
@@ -164,43 +234,62 @@ export default function CallPage() {
             )}
           </div>
 
-          {/* Google Meet Style Control Bar - Below video */}
-          <div className="flex items-center justify-center -mt-4">
-            <Dock
-              className="w-auto h-auto"
-              items={[
-                {
-                  icon: isMicOn ? Mic : MicOff,
-                  label: isMicOn ? "Mute" : "Unmute",
-                  onClick: () => setIsMicOn(!isMicOn)
-                },
-                {
-                  icon: isVideoOn ? Video : VideoOff,
-                  label: isVideoOn ? "Turn off camera" : "Turn on camera",
-                  onClick: () => setIsVideoOn(!isVideoOn)
-                },
-                {
-                  icon: Subtitles,
-                  label: isCaptionsOn ? "Turn off captions" : "Turn on captions",
-                  onClick: () => setIsCaptionsOn(!isCaptionsOn)
-                },
-                {
-                  icon: viewMode === "pip" ? Grid2x2 : Maximize2,
-                  label: viewMode === "pip" ? "Split view" : "Picture-in-picture",
-                  onClick: () => setViewMode(viewMode === "pip" ? "split" : "pip")
-                },
-                {
-                  icon: PhoneOff,
-                  label: "End call",
-                  onClick: () => window.location.href = '/dashboard'
-                },
-                {
-                  icon: MoreVertical,
-                  label: "More options",
-                  onClick: () => console.log("More options")
-                }
-              ]}
-            />
+          {/* Bottom Controls Container - Stretches horizontally */}
+          <div className="flex items-center gap-8 w-full">
+            {/* Fading Text Stream - Left Side */}
+            <div className="max-w-md">
+              <FadingTextStream 
+                text={isListening && isCaptionsOn ? sampleText : ""}
+                speed={80}
+                className="text-gray-700 text-base"
+                lines={2}
+              />
+            </div>
+            
+            {/* Spacer to push dock to the right */}
+            <div className="flex-1" />
+            
+            {/* Google Meet Style Control Bar - Right Side */}
+            <div className="flex-shrink-0">
+              <Dock
+                className="w-auto h-auto"
+                items={[
+                  {
+                    icon: isMicOn ? Mic : MicOff,
+                    label: isMicOn ? "Mute" : "Unmute",
+                    onClick: () => setIsMicOn(!isMicOn),
+                    isActive: isMicOn
+                  },
+                  {
+                    icon: isVideoOn ? Video : VideoOff,
+                    label: isVideoOn ? "Turn off camera" : "Turn on camera",
+                    onClick: () => setIsVideoOn(!isVideoOn),
+                    isActive: isVideoOn
+                  },
+                  {
+                    icon: Subtitles,
+                    label: isCaptionsOn ? "Turn off captions" : "Turn on captions",
+                    onClick: () => setIsCaptionsOn(!isCaptionsOn),
+                    isActive: isCaptionsOn
+                  },
+                  {
+                    icon: viewMode === "pip" ? Grid2x2 : Maximize2,
+                    label: viewMode === "pip" ? "Split view" : "Picture-in-picture",
+                    onClick: () => setViewMode(viewMode === "pip" ? "split" : "pip")
+                  },
+                  {
+                    icon: PhoneOff,
+                    label: "End call",
+                    onClick: () => window.location.href = '/dashboard'
+                  },
+                  {
+                    icon: MoreVertical,
+                    label: "More options",
+                    onClick: () => console.log("More options")
+                  }
+                ]}
+              />
+            </div>
           </div>
         </Card>
       </div>
