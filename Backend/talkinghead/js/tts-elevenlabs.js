@@ -49,31 +49,47 @@ export async function elevenSpeak(head, s, node = null, addText = null) {
       url += cfg('voice-eleven-id');
       url += API_ENDPOINTS.elevenTTS[1];
       elevenInputMsgs[0]["xi_api_key"] = apikey;
+      console.log('🔑 Using direct ElevenLabs API with key:', apikey.substring(0, 8) + '...');
+      console.log('🔊 Voice ID:', cfg('voice-eleven-id'));
     } else {
       url = API_PROXIES.elevenTTS[0];
       url += await jwtGet();
       url += API_PROXIES.elevenTTS[1];
       url += cfg('voice-eleven-id');
       url += API_PROXIES.elevenTTS[2];
+      console.log('🔑 Using JWT proxy');
     }
 
+    console.log('🌐 Connecting to WebSocket:', url);
+    
     // Make the connection
     elevenSocket = new WebSocket(url);
 
     // Connection opened
     elevenSocket.onopen = function (event) {
+      console.log('✅ ElevenLabs WebSocket connected successfully!');
       elevenOutputMsg = null;
+      console.log('📤 Sending', elevenInputMsgs.length, 'queued messages');
       while (elevenInputMsgs.length > 0) {
-        elevenSocket.send(JSON.stringify(elevenInputMsgs.shift()));
+        const msg = elevenInputMsgs.shift();
+        console.log('📤 Sending message:', JSON.stringify(msg).substring(0, 100));
+        elevenSocket.send(JSON.stringify(msg));
       }
     }
 
     // New message received
     elevenSocket.onmessage = function (event) {
       const r = JSON.parse(event.data);
+      console.log('📥 Received message from ElevenLabs:', {
+        isFinal: r.isFinal,
+        hasAlignment: !!r.alignment,
+        hasAudio: !!r.audio,
+        hasNormalizedAlignment: !!r.normalizedAlignment
+      });
 
       // Speak audio
       if ((r.isFinal || r.normalizedAlignment) && elevenOutputMsg) {
+        console.log('🔊 Playing audio chunk with', elevenOutputMsg.audio.length, 'audio buffers');
         head.speakAudio(
           elevenOutputMsg,
           { lipsyncLang: cfg('voice-lipsync-lang') },
@@ -88,6 +104,7 @@ export async function elevenSpeak(head, s, node = null, addText = null) {
       if (!r.isFinal) {
         // New part
         if (r.alignment) {
+          console.log('📝 Processing alignment data');
           elevenOutputMsg = { audio: [], words: [], wtimes: [], wdurations: [] };
 
           // Parse chars to words
@@ -124,16 +141,23 @@ export async function elevenSpeak(head, s, node = null, addText = null) {
     // Error
     elevenSocket.onerror = function (error) {
       if (elevenOnProcessed) elevenOnProcessed();
-      console.error(`ElevenLabs WebSocket Error: ${error}`);
+      console.error('❌ ElevenLabs WebSocket Error:', error);
+      console.error('WebSocket URL:', url);
+      console.error('WebSocket ReadyState:', elevenSocket?.readyState);
     };
 
     // Connection closed
     elevenSocket.onclose = function (event) {
       if (elevenOnProcessed) elevenOnProcessed();
+      console.log('🔌 ElevenLabs WebSocket closed:', {
+        wasClean: event.wasClean,
+        code: event.code,
+        reason: event.reason
+      });
       if (event.wasClean) {
-        // console.info(`Connection closed cleanly, code=${event.code}, reason=${event.reason}`);
+        console.info(`✅ Connection closed cleanly, code=${event.code}, reason=${event.reason}`);
       } else {
-        console.warn('ElevenLabs connection died');
+        console.warn('⚠️ ElevenLabs connection died unexpectedly');
       }
       elevenSocket = null;
     };

@@ -27,6 +27,8 @@ import {
   PromptInputTextarea,
 } from "@/components/prompt-kit/prompt-input";
 import { Button } from "@/components/ui/button";
+import { useElevenLabsAgent } from "@/hooks/useElevenLabsAgent";
+import { config } from "@/lib/config";
 
 export default function CallPage() {
   const [isListening, setIsListening] = useState(false);
@@ -38,9 +40,10 @@ export default function CallPage() {
   const [isCaptionsOn, setIsCaptionsOn] = useState(true);
   const [callTime, setCallTime] = useState(0);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [googleKey, setGoogleKey] = useState<string>("");
-  const [elevenKey, setElevenKey] = useState<string>("");
-  const [voiceProvider, setVoiceProvider] = useState<"google" | "eleven">("google");
+  const [voiceProvider, setVoiceProvider] = useState<"google" | "eleven">("eleven");
+  const [useWebSocket, setUseWebSocket] = useState<boolean>(true); // Toggle between WebSocket and legacy mode (default: true)
+  const [useAgentAudio, setUseAgentAudio] = useState<boolean>(false); // Use ElevenLabs agent audio vs TalkingHead TTS (default: false for better lip-sync)
+  const [audioChunks, setAudioChunks] = useState<string[]>([]); // Store audio chunks for combining
   const [chatInput, setChatInput] = useState("");
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [transcript, setTranscript] = useState<string>("");
@@ -55,6 +58,84 @@ export default function CallPage() {
   const recognitionRef = useRef<any>(null);
   const talkingHeadRef = useRef<HTMLIFrameElement>(null);
   const userId = useRef<string>(`user_${Date.now()}`);
+
+  // ElevenLabs WebSocket Agent Integration
+  const {
+    startConversation,
+    stopConversation,
+    isConnected: isAgentConnected,
+    isAgentSpeaking,
+    error: agentError,
+    sendContextualUpdate,
+    interruptAgent,
+  } = useElevenLabsAgent({
+    agentId: config.elevenlabs.agentId,
+    useAgentAudio: useAgentAudio,
+    onUserTranscript: (userTranscript) => {
+      console.log('User said:', userTranscript);
+      setTranscript(userTranscript);
+      setMessages(prev => [...prev, { role: 'user', content: userTranscript }]);
+    },
+    onAgentResponse: (response) => {
+      console.log('Agent responded:', response);
+      setAiResponse(response);
+      setMessages(prev => [...prev, { role: 'assistant', content: response }]);
+      
+      // Handle avatar speech based on audio mode
+      if (talkingHeadRef.current && talkingHeadRef.current.contentWindow) {
+        if (useAgentAudio) {
+          // Using ElevenLabs audio - clear chunks to prepare for new response
+          console.log('💬 Response received, waiting for audio chunks...');
+          setAudioChunks([]);
+        } else {
+          // Using TalkingHead TTS
+          console.log('💬 Using TalkingHead TTS for response');
+          setIsSpeaking(true);
+          talkingHeadRef.current.contentWindow.postMessage({
+            type: 'SPEAK',
+            text: response,
+            voice: 'Rachel'
+          }, 'http://localhost:8080');
+          
+          // Estimate speaking time
+          const wordsPerMinute = 150;
+          const words = response.split(' ').length;
+          const estimatedDuration = (words / wordsPerMinute) * 60 * 1000;
+          
+          setTimeout(() => {
+            setIsSpeaking(false);
+          }, estimatedDuration);
+        }
+      }
+    },
+    onAudioReceived: (base64Audio) => {
+      // When using agent audio, collect chunks
+      if (useAgentAudio) {
+        console.log('🎵 Received audio chunk for avatar lip-sync');
+        setAudioChunks(prev => [...prev, base64Audio]);
+      }
+    },
+    onAgentResponseCorrection: (original, corrected) => {
+      console.log('Agent corrected response:', corrected);
+      setAiResponse(corrected);
+      // Update the last message
+      setMessages(prev => {
+        const newMessages = [...prev];
+        if (newMessages.length > 0 && newMessages[newMessages.length - 1].role === 'assistant') {
+          newMessages[newMessages.length - 1].content = corrected;
+        }
+        return newMessages;
+      });
+    },
+    onInterruption: (reason) => {
+      console.log('Conversation interrupted:', reason);
+      setIsProcessing(false);
+    },
+    onConnectionStatusChange: (connected) => {
+      console.log('Agent connection status:', connected);
+      setIsListening(connected);
+    },
+  });
   
   const x = useMotionValue(0);
   const y = useMotionValue(0);
@@ -246,15 +327,17 @@ export default function CallPage() {
     return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
   };
 
-  // Load saved settings
+  // Load saved settings from sessionStorage (for user preferences only)
   useEffect(() => {
     try {
-      const g = sessionStorage.getItem("google-tts-apikey") || "";
-      const e = sessionStorage.getItem("elevenlabs-apikey") || "";
-      setGoogleKey(g);
-      setElevenKey(e);
-      const provider = (sessionStorage.getItem("voice-provider") as "google" | "eleven") || "google";
+      const provider = (sessionStorage.getItem("voice-provider") as "google" | "eleven") || "eleven";
       setVoiceProvider(provider);
+      // Default to WebSocket mode (true) if not set
+      const wsMode = sessionStorage.getItem("use-websocket");
+      setUseWebSocket(wsMode === null ? true : wsMode === "true");
+      // Load audio mode preference
+      const audioMode = sessionStorage.getItem("use-agent-audio");
+      setUseAgentAudio(audioMode === "true");
     } catch {}
   }, []);
 
@@ -262,28 +345,37 @@ export default function CallPage() {
     try {
       const target = talkingHeadRef.current?.contentWindow;
       if (!target) return;
-      target.postMessage({ type, payload }, "http://localhost:8080");
+      target.postMessage({ type, payload }, config.talkingHead.url);
     } catch {}
   };
 
   const applySettingsToIframe = () => {
-    if (googleKey) postToIframe("saveApiKey", { provider: "google", key: googleKey });
-    if (elevenKey) postToIframe("saveApiKey", { provider: "eleven", key: elevenKey });
+    // Apply API keys from environment to iframe
+    console.log('🔧 Applying settings to TalkingHead iframe', {
+      hasGoogleKey: !!config.google.apiKey,
+      hasElevenLabsKey: !!config.elevenlabs.apiKey,
+      voiceProvider
+    });
+    
+    if (config.google.apiKey) {
+      console.log('📤 Sending Google API key to iframe');
+      postToIframe("saveApiKey", { provider: "google", key: config.google.apiKey });
+    } else {
+      console.warn('⚠️ No Google API key found in config');
+    }
+    
+    if (config.elevenlabs.apiKey) {
+      console.log('📤 Sending ElevenLabs API key to iframe');
+      postToIframe("saveApiKey", { provider: "eleven", key: config.elevenlabs.apiKey });
+    } else {
+      console.warn('⚠️ No ElevenLabs API key found in config. Add NEXT_PUBLIC_ELEVENLABS_API_KEY to .env.local');
+    }
+    
     postToIframe("setVoice", { value: voiceProvider });
   };
 
   const handleIframeLoad = () => {
     applySettingsToIframe();
-  };
-
-  const handleSaveGoogle = () => {
-    sessionStorage.setItem("google-tts-apikey", googleKey);
-    postToIframe("saveApiKey", { provider: "google", key: googleKey });
-  };
-
-  const handleSaveEleven = () => {
-    sessionStorage.setItem("elevenlabs-apikey", elevenKey);
-    postToIframe("saveApiKey", { provider: "eleven", key: elevenKey });
   };
 
   const handleVoiceChange = (val: "google" | "eleven") => {
@@ -292,21 +384,91 @@ export default function CallPage() {
     postToIframe("setVoice", { value: val });
   };
 
-  const handleChatSubmit = () => {
+  const handleWebSocketToggle = () => {
+    const newValue = !useWebSocket;
+    setUseWebSocket(newValue);
+    sessionStorage.setItem("use-websocket", String(newValue));
+  };
+
+  const handleAudioModeToggle = (useAgent: boolean) => {
+    setUseAgentAudio(useAgent);
+    sessionStorage.setItem("use-agent-audio", String(useAgent));
+  };
+
+  // Handle starting/stopping the WebSocket conversation
+  const handleToggleConversation = async () => {
+    console.log('🎙️ Toggle conversation clicked', { useWebSocket, isAgentConnected, agentId: config.elevenlabs.agentId });
+    
+    if (!useWebSocket) {
+      // Fall back to legacy voice recording
+      startRecording();
+      return;
+    }
+
+    if (isAgentConnected) {
+      console.log('🛑 Stopping conversation...');
+      await stopConversation();
+      setTranscript("");
+      setAiResponse("");
+    } else {
+      if (!config.elevenlabs.agentId) {
+        console.warn('❌ No Agent ID configured');
+        alert('Please configure your ElevenLabs Agent ID in the .env.local file.\n\nAdd: NEXT_PUBLIC_ELEVENLABS_AGENT_ID=your_agent_id');
+        return;
+      }
+      
+      console.log('🚀 Starting conversation with Agent ID:', config.elevenlabs.agentId);
+      
+      // Request microphone permission
+      try {
+        console.log('🎤 Requesting microphone permission...');
+        const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        console.log('✅ Microphone permission granted');
+        micStream.getTracks().forEach(track => track.stop()); // Clean up test stream
+        
+        console.log('🔌 Initiating WebSocket connection...');
+        await startConversation();
+        console.log('✅ Conversation started successfully');
+      } catch (error) {
+        console.error('❌ Error starting conversation:', error);
+        setPermissionError('Microphone access is required for voice chat. Please allow microphone access and try again.');
+        setShowPermissionHelp(true);
+      }
+    }
+  };
+
+  const handleChatSubmit = async () => {
     if (!chatInput.trim() || isSpeaking) return;
     
     setIsSpeaking(true);
+    const textToSpeak = chatInput;
     
-    // Send message to iframe to make avatar speak
-    postToIframe("speak", { text: chatInput });
-    
-    // Clear input
+    // Clear input immediately
     setChatInput("");
     
-    // Simulate speaking duration (you can adjust this or get feedback from iframe)
-    setTimeout(() => {
+    try {
+      // Send message to TalkingHead iframe to make avatar speak with lip-sync
+      // The iframe expects: { type: 'speak', payload: { text: '...' } }
+      if (talkingHeadRef.current && talkingHeadRef.current.contentWindow) {
+        console.log('📤 Sending speak message to TalkingHead iframe:', textToSpeak);
+        talkingHeadRef.current.contentWindow.postMessage({
+          type: 'speak',
+          payload: { text: textToSpeak }
+        }, config.talkingHead.url);
+      }
+      
+      // Estimate speaking duration based on text length
+      const wordsPerMinute = 150;
+      const words = textToSpeak.split(' ').length;
+      const estimatedDuration = Math.max(3000, (words / wordsPerMinute) * 60 * 1000);
+      
+      setTimeout(() => {
+        setIsSpeaking(false);
+      }, estimatedDuration);
+    } catch (error) {
+      console.error('Error in manual avatar control:', error);
       setIsSpeaking(false);
-    }, 3000);
+    }
   };
 
   const handleDragEnd = () => {
@@ -430,6 +592,22 @@ export default function CallPage() {
                 <Menu className="w-5 h-5" />
               </button>
               <h2 className="text-lg font-medium text-foreground">AI Therapy Session</h2>
+              
+              {/* Connection Status Indicator */}
+              {useWebSocket && (
+                <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full border ${
+                  isAgentConnected 
+                    ? 'bg-green-500/20 border-green-500/50' 
+                    : 'bg-gray-500/20 border-gray-500/50'
+                }`}>
+                  <div className={`w-2 h-2 rounded-full ${
+                    isAgentConnected ? 'bg-green-500 animate-pulse' : 'bg-gray-500'
+                  }`} />
+                  <span className="text-xs font-medium">
+                    {isAgentConnected ? 'Live' : 'Offline'}
+                  </span>
+                </div>
+              )}
             </div>
             
             {/* Timer Pill */}
@@ -458,20 +636,13 @@ export default function CallPage() {
             </motion.div>
           </div>
 
-          {/* Settings Dropdown Panel */}
-          <motion.div
-            initial={false}
-            animate={{
-              height: isSettingsOpen ? "auto" : 0,
-              opacity: isSettingsOpen ? 1 : 0,
-            }}
-            transition={{ duration: 0.3, ease: "easeInOut" }}
-            className="overflow-hidden"
-          >
-            <div className="bg-muted/30 backdrop-blur-sm border rounded-lg p-4 mb-4 space-y-4">
-              {/* Chat Input */}
+          {/* Main Content Area - Video and Settings Side by Side */}
+          <div className="flex-1 flex gap-4 items-start justify-center overflow-hidden">
+            {/* Video Area - Takes up remaining space */}
+            <div className="flex-1 flex items-start justify-center">
+              {/* Chat Input - Manual Avatar Control */}
               <div>
-                <div className="text-sm font-medium mb-2">Tell Avatar What to Say</div>
+                <div className="text-sm font-medium mb-2">Manual Avatar Control</div>
                 <PromptInput
                   value={chatInput}
                   onValueChange={setChatInput}
@@ -479,10 +650,10 @@ export default function CallPage() {
                   onSubmit={handleChatSubmit}
                   className="w-full"
                 >
-                  <PromptInputTextarea placeholder="Type a message for the avatar..." />
+                  <PromptInputTextarea placeholder="Type a message for the avatar to speak..." />
                   <PromptInputActions className="justify-end pt-2">
                     <PromptInputAction
-                      tooltip={isSpeaking ? "Speaking..." : "Send message"}
+                      tooltip={isSpeaking ? "Speaking..." : "Make avatar speak"}
                     >
                       <Button
                         variant="default"
@@ -502,65 +673,150 @@ export default function CallPage() {
                 </PromptInput>
               </div>
 
-              {/* Voice Provider Selection */}
+              {/* WebSocket Mode Toggle */}
               <div>
-                <div className="text-sm font-medium mb-2">Voice Provider</div>
+                <div className="text-sm font-medium mb-2">Connection Mode</div>
                 <div className="grid grid-cols-2 gap-2">
                   <button
-                    className={`border rounded-md px-3 py-2 text-sm ${voiceProvider === 'google' ? 'bg-primary text-primary-foreground' : 'bg-background hover:bg-muted/50'}`}
-                    onClick={() => handleVoiceChange('google')}
+                    className={`border rounded-md px-3 py-2 text-sm ${!useWebSocket ? 'bg-primary text-primary-foreground' : 'bg-background hover:bg-muted/50'}`}
+                    onClick={handleWebSocketToggle}
                   >
-                    Google TTS
+                    Legacy Mode
                   </button>
                   <button
-                    className={`border rounded-md px-3 py-2 text-sm ${voiceProvider === 'eleven' ? 'bg-primary text-primary-foreground' : 'bg-background hover:bg-muted/50'}`}
-                    onClick={() => handleVoiceChange('eleven')}
+                    className={`border rounded-md px-3 py-2 text-sm ${useWebSocket ? 'bg-primary text-primary-foreground' : 'bg-background hover:bg-muted/50'}`}
+                    onClick={handleWebSocketToggle}
                   >
-                    ElevenLabs
+                    WebSocket (Live)
                   </button>
                 </div>
+                {useWebSocket && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Real-time conversation with ElevenLabs Agent
+                  </p>
+                )}
               </div>
 
-              {/* API Keys */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Audio Source Toggle - Only for WebSocket Mode */}
+              {useWebSocket && (
                 <div>
-                  <div className="text-sm font-medium mb-1">Google API Key</div>
-                  <div className="flex gap-2">
-                    <input
-                      className="flex-1 px-3 py-2 text-sm rounded-md border bg-background"
-                      placeholder="Your Google TTS API key..."
-                      type="password"
-                      value={googleKey}
-                      onChange={(e) => setGoogleKey(e.target.value)}
-                    />
-                    <button 
-                      className="border rounded-md px-3 py-2 text-sm bg-background hover:bg-muted/50" 
-                      onClick={handleSaveGoogle}
+                  <div className="text-sm font-medium mb-2">Avatar Voice</div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      className={`border rounded-md px-3 py-2 text-sm ${!useAgentAudio ? 'bg-primary text-primary-foreground' : 'bg-background hover:bg-muted/50'}`}
+                      onClick={() => handleAudioModeToggle(false)}
                     >
-                      Save
+                      TalkingHead TTS
+                    </button>
+                    <button
+                      className={`border rounded-md px-3 py-2 text-sm ${useAgentAudio ? 'bg-primary text-primary-foreground' : 'bg-background hover:bg-muted/50'}`}
+                      onClick={() => handleAudioModeToggle(true)}
+                    >
+                      Agent Voice
                     </button>
                   </div>
+                  <div className="text-xs text-muted-foreground mt-1 space-y-1">
+                    {useAgentAudio ? (
+                      <p>✨ Uses your ElevenLabs Agent's voice (Note: May have audio sync issues)</p>
+                    ) : (
+                      <p>✅ Perfect lip-sync with TalkingHead's built-in voice</p>
+                    )}
+                  </div>
                 </div>
+              )}
 
+              {/* Voice Provider Selection - Only for Legacy Mode */}
+              {!useWebSocket && (
                 <div>
-                  <div className="text-sm font-medium mb-1">ElevenLabs API Key</div>
-                  <div className="flex gap-2">
-                    <input
-                      className="flex-1 px-3 py-2 text-sm rounded-md border bg-background"
-                      placeholder="Your ElevenLabs API key..."
-                      type="password"
-                      value={elevenKey}
-                      onChange={(e) => setElevenKey(e.target.value)}
-                    />
-                    <button 
-                      className="border rounded-md px-3 py-2 text-sm bg-background hover:bg-muted/50" 
-                      onClick={handleSaveEleven}
+                  <div className="text-sm font-medium mb-2">Legacy Voice Provider</div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      className={`border rounded-md px-3 py-2 text-sm ${voiceProvider === 'google' ? 'bg-primary text-primary-foreground' : 'bg-background hover:bg-muted/50'}`}
+                      onClick={() => handleVoiceChange('google')}
+                      disabled={!config.google.apiKey}
                     >
-                      Save
+                      Google TTS
+                    </button>
+                    <button
+                      className={`border rounded-md px-3 py-2 text-sm ${voiceProvider === 'eleven' ? 'bg-primary text-primary-foreground' : 'bg-background hover:bg-muted/50'}`}
+                      onClick={() => handleVoiceChange('eleven')}
+                      disabled={!config.elevenlabs.apiKey}
+                    >
+                      ElevenLabs
                     </button>
                   </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Configure API keys in .env.local file
+                  </p>
                 </div>
-              </div>
+              )}
+              
+              {/* Error Display */}
+              {agentError && useWebSocket && (
+                <div className="bg-red-500/10 border border-red-500/50 rounded-lg p-3">
+                  <p className="text-red-500 text-sm font-medium mb-1">Connection Error</p>
+                  <p className="text-red-500 text-xs">{agentError}</p>
+                </div>
+              )}
+
+              {/* WebSocket Session Control */}
+              {useWebSocket && (
+                <div className="border-t pt-4 mt-2">
+                  <div className="space-y-3">
+                    {/* Connection Status */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className={`w-3 h-3 rounded-full ${isAgentConnected ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
+                        <span className="text-sm font-medium">
+                          {isAgentConnected ? 'Connected to Agent' : 'Disconnected'}
+                        </span>
+                      </div>
+                      {isAgentConnected && isAgentSpeaking && (
+                        <span className="text-xs text-muted-foreground animate-pulse">
+                          Agent is speaking...
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Session Control Button */}
+                    <button
+                      onClick={handleToggleConversation}
+                      disabled={!config.elevenlabs.agentId && useWebSocket}
+                      className={`w-full py-3 px-4 rounded-lg font-medium transition-all ${
+                        isAgentConnected
+                          ? 'bg-red-500 hover:bg-red-600 text-white'
+                          : 'bg-green-500 hover:bg-green-600 text-white disabled:bg-gray-300 disabled:cursor-not-allowed'
+                      }`}
+                    >
+                      {isAgentConnected ? (
+                        <span className="flex items-center justify-center gap-2">
+                          <PhoneOff className="w-4 h-4" />
+                          End Session
+                        </span>
+                      ) : (
+                        <span className="flex items-center justify-center gap-2">
+                          <Mic className="w-4 h-4" />
+                          Start Conversation Session
+                        </span>
+                      )}
+                    </button>
+
+                    {!config.elevenlabs.agentId && useWebSocket && (
+                      <p className="text-xs text-amber-600 text-center">
+                        ⚠️ Configure NEXT_PUBLIC_ELEVENLABS_AGENT_ID in .env.local
+                      </p>
+                    )}
+
+                    {isAgentConnected && (
+                      <div className="bg-blue-500/10 border border-blue-500/50 rounded-lg p-3">
+                        <p className="text-blue-600 text-xs text-center">
+                          🎙️ Session active - Just start speaking naturally!
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </motion.div>
 
@@ -578,9 +834,32 @@ export default function CallPage() {
                   allow="camera; microphone; autoplay; fullscreen"
                 />
                 
+                {/* WebSocket Status Overlay - Top Center */}
+                {useWebSocket && !isAgentConnected && (
+                  <div className="absolute top-6 left-1/2 transform -translate-x-1/2">
+                    <motion.div
+                      initial={{ opacity: 0, y: -20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="bg-gray-900/90 backdrop-blur-sm px-6 py-3 rounded-full border border-gray-600 shadow-lg"
+                    >
+                      <p className="text-gray-300 text-sm font-medium">
+                        Click "Start Conversation Session" in settings to begin
+                      </p>
+                    </motion.div>
+                  </div>
+                )}
+
                 {/* Captions - Bottom Left */}
                 {isCaptionsOn && (
                   <div className="absolute bottom-6 left-6 max-w-2xl space-y-2">
+                    {/* WebSocket Connection Status */}
+                    {useWebSocket && isAgentConnected && (
+                      <div className="bg-green-500/20 backdrop-blur-sm px-3 py-1.5 rounded-full border border-green-400/50 inline-flex items-center gap-2">
+                        <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+                        <p className="text-green-200 text-xs">Live Connection Active</p>
+                      </div>
+                    )}
+                    
                     {transcript && (
                       <div className="bg-blue-500/20 backdrop-blur-sm p-3 rounded-lg border border-blue-400/50">
                         <p className="text-blue-200 text-xs mb-1">You:</p>
@@ -599,7 +878,7 @@ export default function CallPage() {
                         />
                       </div>
                     )}
-                    {isProcessing && (
+                    {(isProcessing || isAgentSpeaking) && (
                       <div className="bg-gray-500/20 backdrop-blur-sm p-3 rounded-lg border border-gray-400/50">
                         <div className="flex items-center gap-2">
                           <div className="flex gap-1">
@@ -607,7 +886,9 @@ export default function CallPage() {
                             <div className="w-2 h-2 bg-white rounded-full animate-bounce delay-100" />
                             <div className="w-2 h-2 bg-white rounded-full animate-bounce delay-200" />
                           </div>
-                          <span className="text-white text-sm">EMURA is thinking...</span>
+                          <span className="text-white text-sm">
+                            {isAgentSpeaking ? "EMURA is speaking..." : "EMURA is thinking..."}
+                          </span>
                         </div>
                       </div>
                     )}
@@ -694,12 +975,6 @@ export default function CallPage() {
                     label: isVideoOn ? "Turn off camera" : "Turn on camera",
                     onClick: () => setIsVideoOn(!isVideoOn),
                     isActive: isVideoOn
-                  },
-                  {
-                    icon: isRecording ? MicOff : Mic,
-                    label: isRecording ? "Stop Recording" : "Start Voice Chat",
-                    onClick: startRecording,
-                    isActive: isRecording || isProcessing || isSpeaking
                   },
                   {
                     icon: Subtitles,
