@@ -1,31 +1,32 @@
 "use client"
 
 import React, { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 
 const INTRO_STYLE_ID = "history-animations";
 
 // Sample session history data - replace with actual data from your backend
 const sessionHistory = [
   {
-    question: "Morning Reflection - March 15, 2025",
+    question: "Morning Reflection",
     answer:
       "Discussed feelings about work-life balance and strategies for managing stress. We explored mindfulness techniques and identified key triggers for anxiety.",
     meta: "Completed",
   },
   {
-    question: "Evening Check-in - March 12, 2025",
+    question: "Evening Check-in",
     answer:
       "Focused on gratitude practice and reviewed progress on personal goals. Explored relationships and communication patterns with family members.",
     meta: "Completed",
   },
   {
-    question: "Midday Session - March 8, 2025",
+    question: "Midday Session",
     answer:
       "Deep dive into past experiences and how they shape current behavior. We worked on cognitive reframing and identified negative thought patterns to address.",
     meta: "Completed",
   },
   {
-    question: "Weekend Reflection - March 5, 2025",
+    question: "Weekend Reflection",
     answer:
       "Explored creative expression as a form of emotional release. Discussed the importance of self-care routines and setting healthy boundaries.",
     meta: "Completed",
@@ -319,21 +320,15 @@ export default function HistoryPage() {
               <div className="space-y-1">
                 <div className="flex items-center gap-3">
                   <p className={`text-[10px] uppercase tracking-[0.35em] ${palette.muted}`}>Your Journey</p>
-                  <button
-                    type="button"
-                    onClick={toggleTheme}
-                    className={`md:hidden relative inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-[10px] font-medium transition-colors duration-500 ${palette.toggleSurface} ${palette.toggle}`}
-                    aria-pressed={theme === "dark" ? "true" : "false"}
+                  <Link
+                    href="/session"
+                    className={`md:hidden relative inline-flex h-7 items-center gap-1.5 rounded-full border px-3 text-[10px] font-medium transition-colors duration-500 hover:opacity-80 ${palette.toggleSurface} ${palette.toggle}`}
                   >
-                    <span className="relative flex h-3.5 w-3.5 items-center justify-center">
-                      <span
-                        className={`h-1.5 w-1.5 rounded-full transition-all duration-500 ${
-                          theme === "dark" ? "bg-white" : "bg-neutral-900"
-                        }`}
-                      />
-                    </span>
-                    {theme === "dark" ? "Night" : "Day"}
-                  </button>
+                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                    New Session
+                  </Link>
                 </div>
                 <h1 className={`text-2xl font-semibold leading-tight md:text-3xl ${palette.heading}`}>
                   Reflection & Growth
@@ -343,26 +338,15 @@ export default function HistoryPage() {
                 </p>
               </div>
 
-              <button
-                type="button"
-                onClick={toggleTheme}
-                className={`hidden md:inline-flex relative h-8 items-center gap-2 rounded-full border px-3 text-[10px] font-medium transition-colors duration-500 ${palette.toggleSurface} ${palette.toggle}`}
-                aria-pressed={theme === "dark" ? "true" : "false"}
+              <Link
+                href="/session"
+                className={`hidden md:inline-flex relative h-8 items-center gap-2 rounded-full border px-4 text-[10px] font-medium transition-colors duration-500 hover:opacity-80 ${palette.toggleSurface} ${palette.toggle}`}
               >
-                <span className="relative flex h-4 w-4 items-center justify-center">
-                  <span
-                    className={`pointer-events-none absolute inset-0 rounded-full border opacity-40 ${
-                      theme === "dark" ? "border-white/30 animate-pulse" : "border-neutral-400/50"
-                    }`}
-                  />
-                  <span
-                    className={`h-2 w-2 rounded-full transition-all duration-500 ${
-                      theme === "dark" ? "bg-white" : "bg-neutral-900"
-                    }`}
-                  />
-                </span>
-                {theme === "dark" ? "Night" : "Day"} mode
-              </button>
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                Start New Session
+              </Link>
             </header>
 
             <div className="grid grid-cols-1 lg:grid-cols-[1fr_2fr] gap-4 items-start flex-1 overflow-hidden">
