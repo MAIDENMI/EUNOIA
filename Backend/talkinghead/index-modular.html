@@ -64,7 +64,7 @@
     }
 
     body {
-      background-color: var(--colorBackground);
+      background-color: transparent;
       color: var(--colorBody);
       display: flex;
       flex-direction: column;
@@ -85,16 +85,29 @@
       overflow: hidden;
     }
 
+    #background-video {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      z-index: 0;
+    }
+
     #avatar {
       width: 100%;
       height: 100%;
       display: block;
+      position: relative;
+      z-index: 1;
     }
 
     #loading {
       position: absolute;
       top: 50%;
       left: 50%;
+      z-index: 10;
       transform: translate(-50%, -50%);
       font-size: 24px;
       font-weight: 600;
@@ -331,11 +344,13 @@
 </head>
 
 <body class="theme-dark">
-<!-- 
   <div id="avatar-container">
+    <video id="background-video" autoplay loop muted playsinline>
+      <source src="/bg/background.mp4" type="video/mp4">
+    </video>
     <div id="avatar"></div>
     <div id="loading">Initializing...</div>
-  </div> -->
+  </div>
 
   <div id="controls">
     <div id="chat-output"></div>

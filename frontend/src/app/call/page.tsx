@@ -738,13 +738,13 @@ export default function CallPage() {
           </div>
 
           {/* Main Content Area - Video and Settings Side by Side */}
-          <div className="flex-1 flex gap-4 items-start justify-center overflow-hidden">
+          <div className="flex-1 flex items-start justify-center overflow-hidden">
             {/* Video Area - Takes up remaining space */}
             <div className="flex-1 flex items-center justify-center h-full">
             {/* Picture-in-Picture Mode */}
             {viewMode === "pip" && (
               <div ref={containerRef} className="relative w-full h-full bg-gray-900 rounded-xl overflow-hidden">
-                {/* AI Therapist Video - TalkingHead iframe */}
+                {/* AI Therapist Video - TalkingHead iframe with background video */}
                 <iframe
                   ref={talkingHeadRef}
                   onLoad={handleIframeLoad}
@@ -853,6 +853,7 @@ export default function CallPage() {
               <div className="w-full h-full flex gap-4">
                 {/* AI Therapist Video - Left Side */}
                 <div className="relative w-1/2 h-full bg-gray-900 rounded-xl overflow-hidden flex items-center justify-center">
+                  {/* AI Therapist iframe with background video inside */}
                   <iframe
                     ref={talkingHeadRef}
                     onLoad={handleIframeLoad}
