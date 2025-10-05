@@ -1,7 +1,7 @@
 "use client"
-import { useState, useEffect, useRef, useCallback } from "react";
-import Link from "next/link";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import AnimatedGradientBackground from "@/components/ui/animated-gradient-background";
+import { Card } from "@/components/ui/card";
 import { Dock } from "@/components/ui/dock-two";
 import { FadingTextStream } from "@/components/ui/fading-text-stream";
 import { motion, useMotionValue, animate } from "framer-motion";
@@ -14,12 +14,16 @@ import {
   VideoOff, 
   PhoneOff,
   Phone,
+  MoreVertical,
   Subtitles,
+  Menu,
+  ChevronDown,
   ArrowUp,
   Square,
   MessageSquare,
-  History
+  FileText
 } from "lucide-react";
+import Link from "next/link";
 import {
   PromptInput,
   PromptInputAction,
@@ -39,20 +43,24 @@ export default function CallPage() {
   const [isVideoOn, setIsVideoOn] = useState(true);
   const [isCaptionsOn, setIsCaptionsOn] = useState(false);
   const [callTime, setCallTime] = useState(0);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [voiceProvider, setVoiceProvider] = useState<"google" | "eleven">("eleven");
   const [useWebSocket, setUseWebSocket] = useState<boolean>(true); // Toggle between WebSocket and legacy mode (default: true)
+  const [isSpeaking, setIsSpeaking] = useState(false);
   const [transcript, setTranscript] = useState<string>("");
   const [aiResponse, setAiResponse] = useState<string>("");
+  const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [messages, setMessages] = useState<Array<{ role: string; content: string }>>([]);
   const [permissionError, setPermissionError] = useState<string | null>(null);
   const [showPermissionHelp, setShowPermissionHelp] = useState(false);
   const [chatInputValue, setChatInputValue] = useState("");
   const [isAvatarReady, setIsAvatarReady] = useState(false);
+  const [hasEndedSession, setHasEndedSession] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const recognitionRef = useRef<any>(null);
   const talkingHeadRef = useRef<HTMLIFrameElement>(null);
   const userId = useRef<string>(`user_${Date.now()}`);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -131,6 +139,7 @@ export default function CallPage() {
     stopConversation,
     isConnected: isAgentConnected,
     isAgentSpeaking,
+    error: agentError,
     sendContextualUpdate,
     interruptAgent,
   } = useElevenLabsAgent({
@@ -139,28 +148,6 @@ export default function CallPage() {
     isMuted: !isMicOn, // Pass mute state to agent
     onUserTranscript: (userTranscript) => {
       console.log('👤 User said:', userTranscript);
-      
-      // Interrupt agent if it's currently speaking
-      if (isSpeaking || isAgentSpeaking) {
-        console.log('🛑 User interrupted - stopping agent speech');
-        setIsSpeaking(false);
-        interruptAgent();
-        
-        // Stop TalkingHead immediately
-        if (talkingHeadRef.current && talkingHeadRef.current.contentWindow) {
-          const stopMessages = [
-            { type: 'stop' },
-            { type: 'STOP' },
-            { type: 'stopSpeaking' },
-            { type: 'interrupt' }
-          ];
-          
-          stopMessages.forEach(msg => {
-            talkingHeadRef.current?.contentWindow?.postMessage(msg, 'http://localhost:8080');
-          });
-        }
-      }
-      
       setTranscript(userTranscript);
       setMessages(prev => [...prev, { role: 'user', content: userTranscript }]);
     },
@@ -172,6 +159,7 @@ export default function CallPage() {
       // Send text to TalkingHead for TTS + lip-sync (using configured voice provider)
       if (talkingHeadRef.current && talkingHeadRef.current.contentWindow) {
         console.log('📤 Sending text to TalkingHead for TTS + animation');
+        setIsSpeaking(true);
         
         // Send speak command with the agent's text response
         talkingHeadRef.current.contentWindow.postMessage({
@@ -185,7 +173,7 @@ export default function CallPage() {
         const estimatedDuration = (words / wordsPerMinute) * 60 * 1000;
         
         setTimeout(() => {
-          // setIsSpeaking(false); // This state variable was removed
+          setIsSpeaking(false);
         }, estimatedDuration);
       }
     },
@@ -216,40 +204,63 @@ export default function CallPage() {
   
   // Removed placeholder sampleText. Show only real transcript/response in UI.
 
-  const makeTalkingHeadSpeak = useCallback(async (text: string) => {
+  // Voice processing functions
+  const startRecording = async () => {
+    // Check for microphone permission first
     try {
-      // Send message to TalkingHead iframe
-      if (talkingHeadRef.current && talkingHeadRef.current.contentWindow) {
-        talkingHeadRef.current.contentWindow.postMessage({
-          type: 'SPEAK',
-          text: text,
-          voice: 'Rachel'
-        }, 'http://localhost:8080');
-      }
-
-      // Get voice from our service
-      const voiceResponse = await fetch('http://localhost:8001/voice/synthesize', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          text: text,
-          voice_id: '21m00Tcm4TlvDq8ikWAM' // Rachel
-        })
-      });
-
-      if (voiceResponse.ok) {
-        const voiceData = await voiceResponse.json();
-        if (voiceData.audio_base64) {
-          await playAudio(voiceData.audio_base64);
-        }
-      }
-
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach(track => track.stop()); // Stop the test stream
     } catch (error) {
-      console.error('TalkingHead speak error:', error);
+      console.error('Microphone permission denied:', error);
+      setPermissionError('Microphone access is required for voice chat. Please allow microphone access and try again.');
+      setShowPermissionHelp(true);
+      return;
     }
-  }, []);
 
-  const processMessage = useCallback(async (message: string) => {
+    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+      alert('Speech recognition not supported in this browser. Please use Chrome, Edge, or Safari.');
+      return;
+    }
+
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    const recognition = new SpeechRecognition();
+
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = 'en-US';
+
+    recognition.onstart = () => {
+      setIsRecording(true);
+      setIsListening(true);
+      setTranscript("");
+      setAiResponse("");
+    };
+
+    recognition.onresult = (event: any) => {
+      const result = event.results[0][0].transcript;
+      setTranscript(result);
+      setIsRecording(false);
+      setIsListening(false);
+      processMessage(result);
+    };
+
+    recognition.onerror = (event: any) => {
+      console.error('Speech recognition error:', event.error);
+      setIsRecording(false);
+      setIsListening(false);
+      setAiResponse("Sorry, I couldn't hear you clearly. Please try again.");
+    };
+
+    recognition.onend = () => {
+      setIsRecording(false);
+      setIsListening(false);
+    };
+
+    recognitionRef.current = recognition;
+    recognition.start();
+  };
+
+  const processMessage = async (message: string) => {
     setIsProcessing(true);
     
     try {
@@ -292,59 +303,43 @@ export default function CallPage() {
     } finally {
       setIsProcessing(false);
     }
-  }, [messages, makeTalkingHeadSpeak]);
+  };
 
-  // Voice processing functions
-  const startRecording = useCallback(async () => {
-    // Check for microphone permission first
+  const makeTalkingHeadSpeak = async (text: string) => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      stream.getTracks().forEach(track => track.stop()); // Stop the test stream
+      setIsSpeaking(true);
+      
+      // Send message to TalkingHead iframe
+      if (talkingHeadRef.current && talkingHeadRef.current.contentWindow) {
+        talkingHeadRef.current.contentWindow.postMessage({
+          type: 'SPEAK',
+          text: text,
+          voice: 'Rachel'
+        }, 'http://localhost:8080');
+      }
+
+      // Get voice from our service
+      const voiceResponse = await fetch('http://localhost:8001/voice/synthesize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: text,
+          voice_id: '21m00Tcm4TlvDq8ikWAM' // Rachel
+        })
+      });
+
+      if (voiceResponse.ok) {
+        const voiceData = await voiceResponse.json();
+        if (voiceData.audio_base64) {
+          await playAudio(voiceData.audio_base64);
+        }
+      }
+
     } catch (error) {
-      console.error('Microphone permission denied:', error);
-      setPermissionError('Microphone access is required for voice chat. Please allow microphone access and try again.');
-      setShowPermissionHelp(true);
-      return;
+      console.error('TalkingHead speak error:', error);
+      setIsSpeaking(false);
     }
-
-    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-      alert('Speech recognition not supported in this browser. Please use Chrome, Edge, or Safari.');
-      return;
-    }
-
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    const recognition = new SpeechRecognition();
-
-    recognition.continuous = false;
-    recognition.interimResults = false;
-    recognition.lang = 'en-US';
-
-    recognition.onstart = () => {
-      setIsListening(true);
-      setTranscript("");
-      setAiResponse("");
-    };
-
-    recognition.onresult = (event: SpeechRecognitionEvent) => {
-      const result = event.results[0][0].transcript;
-      setTranscript(result);
-      setIsListening(false);
-      processMessage(result);
-    };
-
-    recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
-      console.error('Speech recognition error:', event.error);
-      setIsListening(false);
-      setAiResponse("Sorry, I couldn't hear you clearly. Please try again.");
-    };
-
-    recognition.onend = () => {
-      setIsListening(false);
-    };
-
-    recognitionRef.current = recognition;
-    recognition.start();
-  }, [processMessage]);
+  };
 
   const playAudio = (base64Audio: string): Promise<void> => {
     return new Promise((resolve, reject) => {
@@ -361,43 +356,32 @@ export default function CallPage() {
         
         audio.onended = () => {
           URL.revokeObjectURL(audioUrl);
-          // setIsSpeaking(false); // This state variable was removed
+          setIsSpeaking(false);
           resolve();
         };
         
         audio.onerror = (error) => {
           URL.revokeObjectURL(audioUrl);
-          // setIsSpeaking(false); // This state variable was removed
+          setIsSpeaking(false);
           reject(error);
         };
         
         audio.play().catch(reject);
       } catch (error) {
-        // setIsSpeaking(false); // This state variable was removed
+        setIsSpeaking(false);
         reject(error);
       }
     });
   };
 
-  // Timer for call duration - only runs when connected
+  // Timer for call duration
   useEffect(() => {
-    let intervalId: NodeJS.Timeout | null = null;
-    
-    if (isAgentConnected) {
-      intervalId = setInterval(() => {
-        setCallTime((t) => t + 1);
-      }, 1000);
-    } else {
-      // Reset timer when not connected
-      setCallTime(0);
-    }
+    const intervalId = setInterval(() => {
+      setCallTime((t) => t + 1);
+    }, 1000);
 
-    return () => {
-      if (intervalId) {
-        clearInterval(intervalId);
-      }
-    };
-  }, [isAgentConnected]);
+    return () => clearInterval(intervalId);
+  }, []);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -416,7 +400,7 @@ export default function CallPage() {
     } catch {}
   }, []);
 
-  const postToIframe = (type: string, payload?: Record<string, unknown> | string) => {
+  const postToIframe = (type: string, payload?: any) => {
     try {
       const target = talkingHeadRef.current?.contentWindow;
       if (!target) return;
@@ -459,6 +443,18 @@ export default function CallPage() {
     }, 1500);
   };
 
+  const handleVoiceChange = (val: "google" | "eleven") => {
+    setVoiceProvider(val);
+    sessionStorage.setItem("voice-provider", val);
+    postToIframe("setVoice", { value: val });
+  };
+
+  const handleWebSocketToggle = () => {
+    const newValue = !useWebSocket;
+    setUseWebSocket(newValue);
+    sessionStorage.setItem("use-websocket", String(newValue));
+  };
+
   // Handle starting/stopping the WebSocket conversation
   const handleToggleConversation = useCallback(async () => {
     console.log('🎙️ Toggle conversation clicked', { useWebSocket, isAgentConnected, agentId: config.elevenlabs.agentId });
@@ -473,22 +469,20 @@ export default function CallPage() {
       console.log('🛑 Ending conversation immediately...');
       
       // Immediately stop any speaking/audio
-      // setIsSpeaking(false); // This state variable was removed
+      setIsSpeaking(false);
       interruptAgent(); // Stop agent audio playback
       
-      // Stop TalkingHead from speaking - try multiple message types for compatibility
+      // Stop TalkingHead from speaking
       if (talkingHeadRef.current && talkingHeadRef.current.contentWindow) {
         console.log('🔇 Stopping TalkingHead speech');
-        const stopMessages = [
-          { type: 'stop' },
-          { type: 'STOP' },
-          { type: 'stopSpeaking' },
-          { type: 'interrupt' }
-        ];
-        
-        stopMessages.forEach(msg => {
-          talkingHeadRef.current?.contentWindow?.postMessage(msg, 'http://localhost:8080');
-        });
+        talkingHeadRef.current.contentWindow.postMessage({
+          type: 'stop',
+        }, 'http://localhost:8080');
+      }
+      
+      // Save session to history before ending
+      if (messages.length > 0) {
+        saveSessionToHistory();
       }
       
       // Disconnect WebSocket immediately
@@ -498,6 +492,9 @@ export default function CallPage() {
       // Clear UI
       setTranscript("");
       setAiResponse("");
+      
+      // Mark session as ended
+      setHasEndedSession(true);
       
       console.log('✅ Conversation ended');
     } else {
@@ -510,6 +507,9 @@ export default function CallPage() {
       console.log('🚀 Starting conversation with Agent ID:', config.elevenlabs.agentId);
       console.log('🎯 Flow: Agent provides text → TalkingHead handles TTS + animation');
       console.log('🔊 Voice Provider:', voiceProvider === 'eleven' ? 'ElevenLabs TTS' : 'Google TTS');
+      
+      // Reset session ended state when starting new conversation
+      setHasEndedSession(false);
       
       // Request microphone permission
       try {
@@ -530,7 +530,34 @@ export default function CallPage() {
         setShowPermissionHelp(true);
       }
     }
-  }, [useWebSocket, isAgentConnected, stopConversation, startConversation, voiceProvider, interruptAgent, startRecording]);
+  }, [useWebSocket, isAgentConnected, sendContextualUpdate, stopConversation, startConversation, voiceProvider, interruptAgent]);
+
+  // Function to save session to history
+  const saveSessionToHistory = () => {
+    try {
+      const sessionData = {
+        id: `session_${Date.now()}`,
+        title: `Therapy Session - ${new Date().toLocaleDateString()}`,
+        date: new Date().toISOString(),
+        duration: formatTime(callTime),
+        messages: messages,
+        summary: messages.length > 0 ? messages[0].content.substring(0, 100) + '...' : 'No conversation'
+      };
+
+      // Get existing sessions
+      const existingSessions = JSON.parse(localStorage.getItem('therapy_sessions') || '[]');
+      
+      // Add new session
+      existingSessions.unshift(sessionData);
+      
+      // Save back to localStorage
+      localStorage.setItem('therapy_sessions', JSON.stringify(existingSessions));
+      
+      console.log('✅ Session saved to history');
+    } catch (error) {
+      console.error('❌ Error saving session:', error);
+    }
+  };
 
   // Global keyboard shortcuts
   useEffect(() => {
@@ -635,7 +662,7 @@ export default function CallPage() {
         stream.getTracks().forEach(track => track.stop());
       }
     };
-  }, [stream]);
+  }, []);
 
   // Apply stream to video element whenever it changes
   useEffect(() => {
@@ -814,7 +841,7 @@ export default function CallPage() {
                     )}
                     {aiResponse && (
                       <div className="bg-purple-500/20 backdrop-blur-sm p-3 rounded-lg border border-purple-400/50">
-                        <p className="text-purple-200 text-xs mb-1">SARAH:</p>
+                        <p className="text-purple-200 text-xs mb-1">EMURA:</p>
                         <FadingTextStream 
                           text={aiResponse}
                           speed={50}
@@ -833,7 +860,7 @@ export default function CallPage() {
                             <div className="w-2 h-2 bg-white rounded-full animate-bounce delay-200" />
                           </div>
                           <span className="text-white text-sm">
-                            {isAgentSpeaking ? "SARAH is speaking..." : "SARAH is thinking..."}
+                            {isAgentSpeaking ? "EMURA is speaking..." : "EMURA is thinking..."}
                           </span>
                         </div>
                       </div>
@@ -905,7 +932,7 @@ export default function CallPage() {
                       )}
                       {aiResponse && (
                         <div className="bg-purple-500/20 backdrop-blur-sm p-3 rounded-lg border border-purple-400/50">
-                          <p className="text-purple-200 text-xs mb-1">SARAH:</p>
+                          <p className="text-purple-200 text-xs mb-1">EMURA:</p>
                           <FadingTextStream 
                             text={aiResponse}
                             speed={50}
@@ -941,24 +968,27 @@ export default function CallPage() {
               opacity: showHistory ? 1 : 0,
             }}
             transition={{ duration: 0.3, ease: "easeInOut" }}
-            className="overflow-hidden h-full ml-4"
+            className="overflow-hidden h-full"
           >
               <div className="w-[450px] h-full bg-muted/30 backdrop-blur-sm border rounded-lg flex flex-col overflow-hidden">
               {/* Chat Header */}
               <div className="p-4 border-b">
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="text-sm font-semibold">Conversation</h3>
-                  <Link 
-                    href="/history"
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs bg-purple-500/20 text-purple-400 border border-purple-500/30 hover:bg-purple-500/30 hover:border-purple-500/50 transition-all duration-200"
-                  >
-                    <History className="w-3 h-3" />
-                    View All History
-                  </Link>
+                  <div className={`flex items-center gap-2 px-2 py-1 rounded-full text-xs ${
+                    isAgentConnected 
+                      ? 'bg-green-500/20 text-green-400' 
+                      : 'bg-gray-500/20 text-gray-400'
+                  }`}>
+                    <div className={`w-1.5 h-1.5 rounded-full ${
+                      isAgentConnected ? 'bg-green-400 animate-pulse' : 'bg-gray-400'
+                    }`} />
+                    {isAgentConnected ? 'Connected' : 'Offline'}
+                  </div>
                 </div>
                 <p className="text-xs text-muted-foreground">
                   {messages.length === 0 
-                    ? 'Start a conversation with SARAH' 
+                    ? 'Start a conversation with EMURA' 
                     : `${messages.length} messages`}
                 </p>
               </div>
@@ -1000,7 +1030,7 @@ export default function CallPage() {
                           <div className={`text-[10px] font-medium uppercase tracking-wider ${
                             message.role === 'user' ? 'text-blue-500' : 'text-purple-500'
                           }`}>
-                            {message.role === 'user' ? 'You' : 'SARAH'}
+                            {message.role === 'user' ? 'You' : 'EMURA'}
                           </div>
                           <div className="text-sm leading-relaxed text-foreground whitespace-pre-wrap break-words">
                             {message.content}
@@ -1016,7 +1046,7 @@ export default function CallPage() {
                           className="border-l-2 border-purple-500/30 pl-4 space-y-1.5"
                         >
                           <div className="text-[10px] font-medium uppercase tracking-wider text-purple-500">
-                            SARAH
+                            EMURA
                           </div>
                           <div className="flex items-center gap-2">
                             <div className="flex gap-1">
@@ -1038,63 +1068,83 @@ export default function CallPage() {
                 )}
               </div>
 
-              {/* Chat Input */}
+              {/* Chat Input or AI Analysis Link */}
               <div className="p-4 border-t">
-                <PromptInput
-                  value={chatInputValue}
-                  onValueChange={setChatInputValue}
-                  isLoading={isProcessing || isAgentSpeaking}
-                  onSubmit={() => {
-                    const message = chatInputValue.trim();
-                    if (message) {
-                      // Add user message to chat
-                      setMessages(prev => [...prev, { role: 'user', content: message }]);
-                      
-                      // Send to agent if connected, otherwise use legacy mode
-                      if (useWebSocket && isAgentConnected) {
-                        sendContextualUpdate(message);
-                      } else {
-                        processMessage(message);
+                {hasEndedSession && messages.length > 0 ? (
+                  // Show AI Analysis link after session ends
+                  <Link href="/history">
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="flex items-center justify-center gap-3 p-4 bg-gradient-to-r from-purple-500/20 to-blue-500/20 hover:from-purple-500/30 hover:to-blue-500/30 rounded-lg border border-purple-500/30 hover:border-purple-500/50 transition-all cursor-pointer group"
+                    >
+                      <FileText className="w-5 h-5 text-purple-400 group-hover:text-purple-300 transition-colors" />
+                      <div className="flex flex-col items-start">
+                        <span className="text-sm font-semibold text-purple-300 group-hover:text-purple-200 transition-colors">
+                          AI Analysis
+                        </span>
+                        <span className="text-xs text-purple-400/70">
+                          Session saved • Click to review
+                        </span>
+                      </div>
+                    </motion.div>
+                  </Link>
+                ) : (
+                  // Show normal chat input during active session
+                  <PromptInput
+                    value={chatInputValue}
+                    onValueChange={setChatInputValue}
+                    isLoading={isProcessing || isAgentSpeaking}
+                    onSubmit={() => {
+                      const message = chatInputValue.trim();
+                      if (message) {
+                        // Add user message to chat
+                        setMessages(prev => [...prev, { role: 'user', content: message }]);
+                        
+                        // Send to agent if connected, otherwise use legacy mode
+                        if (useWebSocket && isAgentConnected) {
+                          sendContextualUpdate(message);
+                        } else {
+                          processMessage(message);
+                        }
+                        
+                        // Clear input
+                        setChatInputValue('');
                       }
-                      
-                      // Clear input
-                      setChatInputValue('');
-                    }
-                  }}
-                >
-                  <PromptInputTextarea 
-                    placeholder="Type a message to SARAH..." 
-                    className="min-h-[60px] resize-none"
-                    disabled={false}
-                  />
-                  <PromptInputActions>
-                    <PromptInputAction tooltip="Send Message">
-                      <Button 
-                        size="sm"
-                        type="submit"
-                        disabled={!chatInputValue.trim()}
-                      >
-                        <ArrowUp className="w-4 h-4" />
-                      </Button>
-                    </PromptInputAction>
-                    {isAgentConnected && isAgentSpeaking && (
-                      <PromptInputAction tooltip="Stop Speaking">
+                    }}
+                  >
+                    <PromptInputTextarea 
+                      placeholder="Type a message to EMURA..." 
+                      className="min-h-[60px] resize-none"
+                      disabled={!isAgentConnected && useWebSocket}
+                    />
+                    <PromptInputActions>
+                      <PromptInputAction tooltip="Send Message">
                         <Button 
                           size="sm"
-                          variant="destructive"
-                          onClick={() => {
-                            interruptAgent();
-                            // setIsSpeaking(false); // This state variable was removed
-                          }}
+                          type="submit"
+                          disabled={!isAgentConnected && useWebSocket || !chatInputValue.trim()}
                         >
-                          <Square className="w-4 h-4" />
+                          <ArrowUp className="w-4 h-4" />
                         </Button>
                       </PromptInputAction>
-                    )}
-                  </PromptInputActions>
-                </PromptInput>
-                
-
+                      {isAgentConnected && isAgentSpeaking && (
+                        <PromptInputAction tooltip="Stop Speaking">
+                          <Button 
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => {
+                              interruptAgent();
+                              setIsSpeaking(false);
+                            }}
+                          >
+                            <Square className="w-4 h-4" />
+                          </Button>
+                        </PromptInputAction>
+                      )}
+                    </PromptInputActions>
+                  </PromptInput>
+                )}
               </div>
             </div>
                     </motion.div>
@@ -1179,8 +1229,8 @@ export default function CallPage() {
             <div className="text-sm text-gray-500 mb-6">
               <p className="mb-2"><strong>To enable voice chat:</strong></p>
               <ol className="list-decimal list-inside space-y-1">
-                <li>Click the microphone icon in your browser&apos;s address bar</li>
-                <li>Select &quot;Allow&quot; for microphone access</li>
+                <li>Click the microphone icon in your browser's address bar</li>
+                <li>Select "Allow" for microphone access</li>
                 <li>Refresh the page and try again</li>
               </ol>
             </div>
