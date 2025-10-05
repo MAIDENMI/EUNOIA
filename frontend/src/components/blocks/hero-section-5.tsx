@@ -60,8 +60,8 @@ export function HeroSection() {
                             </div>
                             <div className="relative py-6 md:w-[calc(100%-11rem)]">
                                 <InfiniteSlider
-                                    speedOnHover={20}
-                                    speed={40}
+                                    durationOnHover={20}
+                                    duration={40}
                                     gap={64}>
                                     <div className="flex items-center justify-center w-40">
                                         <img
@@ -104,3 +104,85 @@ export function HeroSection() {
                                             className="mx-auto h-12 w-auto object-contain dark:invert"
                                             src="https://upload.wikimedia.org/wikipedia/commons/c/cc/Harvard_University_coat_of_arms.svg"
                                             alt="Harvard University Logo"
+                                        />
+                                    </div>
+                                </InfiniteSlider>
+                                <ProgressiveBlur
+                                    className="absolute inset-y-0"
+                                    direction="left"
+                                    blurIntensity={4}
+                                />
+                                <ProgressiveBlur
+                                    className="absolute inset-y-0"
+                                    direction="right"
+                                    blurIntensity={4}
+                                />
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </main>
+        </>
+    )
+}
+
+function HeroHeader() {
+    const { scrollY } = useScroll()
+    const [isOpen, setIsOpen] = React.useState(false)
+
+    return (
+        <motion.header
+            style={{
+                backdropFilter: scrollY.get() > 0 ? 'blur(8px)' : 'none',
+            }}
+            className="fixed inset-x-0 top-0 z-50 border-b border-black/10 dark:border-white/5">
+            <nav className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6 lg:px-12">
+                <div className="flex items-center gap-8">
+                    <Link href="/" className="text-xl font-semibold">
+                        EUNOIA
+                    </Link>
+                </div>
+
+                <div className="hidden items-center gap-8 md:flex">
+                    <Link href="#features" className="text-sm hover:underline">
+                        Features
+                    </Link>
+                    <Link href="#pricing" className="text-sm hover:underline">
+                        Pricing
+                    </Link>
+                    <Link href="#about" className="text-sm hover:underline">
+                        About
+                    </Link>
+                    <Button asChild size="sm">
+                        <Link href="/login">Sign In</Link>
+                    </Button>
+                </div>
+
+                <button
+                    className="md:hidden"
+                    onClick={() => setIsOpen(!isOpen)}>
+                    {isOpen ? <X /> : <Menu />}
+                </button>
+            </nav>
+
+            {isOpen && (
+                <div className="border-t border-black/10 bg-background/95 backdrop-blur-sm dark:border-white/5 md:hidden">
+                    <div className="flex flex-col gap-4 p-6">
+                        <Link href="#features" className="text-sm">
+                            Features
+                        </Link>
+                        <Link href="#pricing" className="text-sm">
+                            Pricing
+                        </Link>
+                        <Link href="#about" className="text-sm">
+                            About
+                        </Link>
+                        <Button asChild size="sm" className="w-full">
+                            <Link href="/login">Sign In</Link>
+                        </Button>
+                    </div>
+                </div>
+            )}
+        </motion.header>
+    )
+}
