@@ -2,25 +2,12 @@
 
 import { SignInPage } from '@/components/ui/sign-in';
 import { signIn } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
 
 export default function LoginPage() {
-  const router = useRouter();
-
-  const handleSignIn = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-    const email = formData.get('email') as string;
-    const password = formData.get('password') as string;
-
-    // For now, email/password is not configured
-    // You can add CredentialsProvider later if needed
-    console.log('Email/password sign in not yet configured:', { email });
-  };
-
   const handleGoogleSignIn = async () => {
     try {
       // Use NextAuth's signIn with Google provider
+      // This handles both sign in and sign up
       await signIn('google', { 
         callbackUrl: '/',
         redirect: true,
@@ -30,21 +17,11 @@ export default function LoginPage() {
     }
   };
 
-  const handleResetPassword = () => {
-    console.log('Reset password clicked');
-    // TODO: Implement password reset flow
-  };
-
-  const handleCreateAccount = () => {
-    console.log('Create account clicked');
-    router.push('/signup');
-  };
-
   return (
     <SignInPage
       title={
         <span className="font-light text-foreground tracking-tighter">
-          Welcome to EUNOIA
+          Welcome to Veloria
         </span>
       }
       description="Sign in to access your AI therapy sessions"
@@ -63,10 +40,7 @@ export default function LoginPage() {
           text: "The AI therapy sessions are incredibly insightful and helpful."
         }
       ]}
-      onSignIn={handleSignIn}
       onGoogleSignIn={handleGoogleSignIn}
-      onResetPassword={handleResetPassword}
-      onCreateAccount={handleCreateAccount}
     />
   );
 }

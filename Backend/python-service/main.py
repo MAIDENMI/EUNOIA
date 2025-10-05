@@ -96,7 +96,10 @@ async def chat(request: ChatRequest):
     Handle conversational AI with CBT-inspired responses
     Includes emotion detection and movement suggestions
     """
+    print(f"📥 Received chat request: {request.dict()}")
+    
     if not model:
+        print("❌ Gemini API not configured")
         raise HTTPException(status_code=500, detail="Gemini API not configured")
     
     try:
@@ -126,6 +129,20 @@ async def chat(request: ChatRequest):
         )
     
     except Exception as e:
+        print(f"❌ Chat error: {str(e)}")
+        print(f"❌ Error type: {type(e).__name__}")
+        
+        # Check if it's a quota exceeded error
+        if "quota" in str(e).lower() or "429" in str(e):
+            print("🚫 Gemini API quota exceeded - using fallback response")
+            return ChatResponse(
+                response="I understand you'd like to chat, but I'm currently experiencing high demand. Please try again in a few minutes, or consider upgrading to a paid plan for uninterrupted service. In the meantime, take a deep breath and know that I'm here to help when available.",
+                emotion_detected=detect_emotion_from_text(request.message),
+                suggested_movement="Take three slow, deep breaths"
+            )
+        
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Error generating response: {str(e)}")
 
 

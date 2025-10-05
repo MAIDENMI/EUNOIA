@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Image from "next/image";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils"; // Assuming you have a `cn` utility from shadcn
 
@@ -50,7 +51,7 @@ const AnimatedFeatureCard = React.forwardRef<
       ref={ref}
       style={cardStyle}
       className={cn(
-        "relative flex h-[380px] w-full max-w-sm flex-col justify-end overflow-hidden rounded-2xl border bg-card p-6 shadow-sm",
+        "relative flex h-[320px] sm:h-[360px] lg:h-[380px] w-full max-w-sm flex-col justify-end overflow-hidden rounded-2xl border bg-card p-4 sm:p-6 shadow-sm",
         className
       )}
       whileHover="hover"
@@ -70,7 +71,7 @@ const AnimatedFeatureCard = React.forwardRef<
       />
       
       {/* Index Number */}
-      <div className="absolute top-6 left-6 font-mono text-lg font-bold text-muted-foreground">
+      <div className="absolute top-4 left-4 sm:top-6 sm:left-6 font-mono text-base sm:text-lg font-bold text-muted-foreground">
         {index}
       </div>
 
@@ -83,10 +84,12 @@ const AnimatedFeatureCard = React.forwardRef<
         }}
         transition={{ type: "spring", stiffness: 200, damping: 15 }}
       >
-        <img
+        <Image
           src={imageSrc}
           alt={tag}
-          className="w-40 h-40 object-contain"
+          width={160}
+          height={160}
+          className="w-32 h-32 sm:w-36 sm:h-36 lg:w-40 lg:h-40 object-contain"
         />
       </motion.div>
       

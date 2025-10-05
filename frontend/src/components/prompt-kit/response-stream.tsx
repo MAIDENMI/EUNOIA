@@ -9,13 +9,11 @@ export interface TextSegment {
 
 interface UseTextStreamOptions {
   textStream: string
-  mode: "fade" | "typewriter"
   speed?: number
 }
 
 export function useTextStream({
   textStream,
-  mode,
   speed = 100,
 }: UseTextStreamOptions) {
   const [segments, setSegments] = useState<TextSegment[]>([])

@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import AnimatedGradientBackground from "@/components/ui/animated-gradient-background";
 import { VoiceInput } from "@/components/ui/voice-input";
 import { FadingTextStream } from "@/components/ui/fading-text-stream";
-import { AnimatePresence, motion } from "framer-motion";
+import { motion } from "framer-motion";
 import { MoreVertical } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {

@@ -235,7 +235,7 @@ function FAQ1() {
       attributeFilter: ["class", "data-theme"],
     });
 
-    const handleStorage = (event) => {
+    const handleStorage = (event: StorageEvent) => {
       if (event.key === "bento-theme") applyThemeFromRoot();
     };
 
@@ -247,7 +247,7 @@ function FAQ1() {
     };
   }, []);
 
-  const palette = useMemo(() => palettes[theme], [theme]);
+  const palette = useMemo(() => palettes[theme as keyof typeof palettes], [theme]);
 
   const toggleTheme = () => {
     if (typeof document === "undefined") return;
@@ -257,11 +257,11 @@ function FAQ1() {
     setTheme(next);
     try {
       window.localStorage?.setItem("bento-theme", next);
-    } catch (_err) {
+    } catch {
       /* ignore */
     }
   };
-  const toggleQuestion = (index) => setActiveIndex((prev) => (prev === index ? -1 : index));
+  const toggleQuestion = (index: number) => setActiveIndex((prev) => (prev === index ? -1 : index));
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -269,7 +269,7 @@ function FAQ1() {
       return;
     }
 
-    let timeout;
+    let timeout: number;
     const onLoad = () => {
       timeout = window.setTimeout(() => setHasEntered(true), 120);
     };
@@ -286,14 +286,14 @@ function FAQ1() {
     };
   }, []);
 
-  const setCardGlow = (event) => {
+  const setCardGlow = (event: React.MouseEvent<HTMLLIElement>) => {
     const target = event.currentTarget;
     const rect = target.getBoundingClientRect();
     target.style.setProperty("--faq-x", `${event.clientX - rect.left}px`);
     target.style.setProperty("--faq-y", `${event.clientY - rect.top}px`);
   };
 
-  const clearCardGlow = (event) => {
+  const clearCardGlow = (event: React.MouseEvent<HTMLLIElement>) => {
     const target = event.currentTarget;
     target.style.removeProperty("--faq-x");
     target.style.removeProperty("--faq-y");
@@ -385,7 +385,7 @@ function FAQ1() {
                   aria-controls={panelId}
                   aria-expanded={open}
                   onClick={() => toggleQuestion(index)}
-                  style={{ "--faq-outline": theme === "dark" ? "rgba(255,255,255,0.35)" : "rgba(17,17,17,0.25)" }}
+                  style={{ "--faq-outline": theme === "dark" ? "rgba(255,255,255,0.35)" : "rgba(17,17,17,0.25)" } as React.CSSProperties}
                   className="relative flex w-full items-start gap-6 px-8 py-7 text-left transition-colors duration-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--faq-outline)]"
                 >
                   <span

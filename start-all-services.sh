@@ -1,9 +1,9 @@
 #!/bin/bash
 
-# Complete startup script for EUNOIA project
+# Complete startup script for Veloria project
 # Starts: Frontend (3000), Python AI (8000), Node Voice (8001), TalkingHead (8080)
 
-echo "🌿 Starting EUNOIA - Complete System"
+echo "🌿 Starting Veloria - Complete System"
 echo "===================================="
 echo ""
 

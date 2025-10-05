@@ -212,7 +212,6 @@ export const useElevenLabsAgent = (options: UseElevenLabsAgentOptions = {}) => {
     isConnected,
     agentId,
     signedUrl,
-    useAgentAudio,
     startStreaming,
     stopStreaming,
     onUserTranscript,
@@ -230,6 +229,10 @@ export const useElevenLabsAgent = (options: UseElevenLabsAgentOptions = {}) => {
     
     console.log('🛑 Ending ElevenLabs conversation session...');
     
+    // Immediately stop any audio playback and clear queue
+    stopCurrentAudio();
+    clearQueue();
+    
     // Send end of conversation message to properly terminate the session
     try {
       sendMessage(websocketRef.current, {
@@ -238,16 +241,15 @@ export const useElevenLabsAgent = (options: UseElevenLabsAgentOptions = {}) => {
       console.log('✅ Sent end_of_conversation message');
       
       // Wait a brief moment for the message to be sent
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise(resolve => setTimeout(resolve, 200));
     } catch (error) {
       console.error('Error sending end_of_conversation:', error);
     }
     
     // Now close the WebSocket connection
     websocketRef.current.close();
-    clearQueue();
     console.log('🔌 WebSocket closed');
-  }, [clearQueue]);
+  }, [clearQueue, stopCurrentAudio]);
 
   const sendContextualUpdate = useCallback((text: string) => {
     if (!websocketRef.current || !isConnected) {
