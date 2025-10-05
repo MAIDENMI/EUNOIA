@@ -22,7 +22,7 @@ export default function LoginPage() {
     try {
       // Use NextAuth's signIn with Google provider
       await signIn('google', { 
-        callbackUrl: '/call',
+        callbackUrl: '/',
         redirect: true,
       });
     } catch (error) {
