@@ -1,0 +1,2 @@
+timestamp,window_start,window_end,primary_emotion,sadness_level,sadness_intensity,happy_confidence,sad_confidence,samples_collected,landmarks_used
+2025-10-05T03:39:15.890480Z,2025-10-05T03:38:45.820820Z,2025-10-05T03:39:15.890452Z,neutral,N/A,N/A,50.00,50.00,58,False

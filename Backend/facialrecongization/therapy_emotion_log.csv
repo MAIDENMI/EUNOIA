@@ -1,0 +1,5 @@
+timestamp,window_start,window_end,primary_emotion,sadness_level,sadness_intensity,emotion_scores,samples_collected,model_type
+2025-10-05T02:02:23.953241Z,2025-10-05T02:01:53.850246Z,2025-10-05T02:02:23.953213Z,neutral,melancholic,59.70,"{'neutral': 34, 'sad': 7, 'fearful': 10, 'surprised': 4, 'happy': 16, 'angry': 3}",74,DeepFace
+2025-10-05T02:02:53.987603Z,2025-10-05T02:02:23.961848Z,2025-10-05T02:02:53.987594Z,neutral,depressed,77.67,"{'neutral': 32, 'angry': 3, 'fearful': 15, 'sad': 9, 'happy': 7}",66,DeepFace
+2025-10-05T02:03:24.014858Z,2025-10-05T02:02:53.989343Z,2025-10-05T02:03:24.014829Z,neutral,depressed,86.31,"{'angry': 3, 'neutral': 35, 'happy': 8, 'sad': 3, 'fearful': 9, 'surprised': 2}",60,DeepFace
+2025-10-05T02:03:54.067028Z,2025-10-05T02:03:24.018329Z,2025-10-05T02:03:54.067019Z,neutral,melancholic,65.16,"{'angry': 3, 'neutral': 19, 'sad': 4, 'happy': 19, 'fearful': 8, 'surprised': 1}",54,DeepFace
