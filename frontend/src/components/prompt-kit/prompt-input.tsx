@@ -45,7 +45,7 @@ export function PromptInput({
   )
 }
 
-interface PromptInputTextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {}
+type PromptInputTextareaProps = React.TextareaHTMLAttributes<HTMLTextAreaElement>
 
 export function PromptInputTextarea({ className, ...props }: PromptInputTextareaProps) {
   const { value, onValueChange, onSubmit, isLoading } = usePromptInput()
@@ -83,7 +83,7 @@ export function PromptInputTextarea({ className, ...props }: PromptInputTextarea
   )
 }
 
-interface PromptInputActionsProps extends React.HTMLAttributes<HTMLDivElement> {}
+type PromptInputActionsProps = React.HTMLAttributes<HTMLDivElement>
 
 export function PromptInputActions({ className, children, ...props }: PromptInputActionsProps) {
   return (

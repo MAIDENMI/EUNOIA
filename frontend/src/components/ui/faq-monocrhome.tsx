@@ -65,7 +65,7 @@ const palettes = {
 };
 
 function FAQ1() {
-  const getRootTheme = () => {
+  const getRootTheme = (): Theme => {
     if (typeof document === "undefined") return "dark";
     if (document.documentElement.classList.contains("dark")) return "dark";
     if (document.documentElement.classList.contains("light")) return "light";
@@ -75,7 +75,9 @@ function FAQ1() {
     return "light";
   };
 
-  const [theme, setTheme] = useState(getRootTheme);
+  type Theme = keyof typeof palettes;
+
+  const [theme, setTheme] = useState<Theme>(getRootTheme);
   const [introReady, setIntroReady] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const [hasEntered, setHasEntered] = useState(false);
@@ -235,7 +237,7 @@ function FAQ1() {
       attributeFilter: ["class", "data-theme"],
     });
 
-    const handleStorage = (event) => {
+    const handleStorage = (event: StorageEvent) => {
       if (event.key === "bento-theme") applyThemeFromRoot();
     };
 
@@ -254,14 +256,14 @@ function FAQ1() {
     const root = document.documentElement;
     const next = root.classList.contains("dark") ? "light" : "dark";
     root.classList.toggle("dark", next === "dark");
-    setTheme(next);
+    setTheme(next as Theme);
     try {
       window.localStorage?.setItem("bento-theme", next);
     } catch (_err) {
       /* ignore */
     }
   };
-  const toggleQuestion = (index) => setActiveIndex((prev) => (prev === index ? -1 : index));
+  const toggleQuestion = (index: number) => setActiveIndex((prev) => (prev === index ? -1 : index));
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -269,7 +271,7 @@ function FAQ1() {
       return;
     }
 
-    let timeout;
+    let timeout: number;
     const onLoad = () => {
       timeout = window.setTimeout(() => setHasEntered(true), 120);
     };
@@ -286,14 +288,14 @@ function FAQ1() {
     };
   }, []);
 
-  const setCardGlow = (event) => {
+  const setCardGlow = (event: React.MouseEvent<HTMLLIElement>) => {
     const target = event.currentTarget;
     const rect = target.getBoundingClientRect();
     target.style.setProperty("--faq-x", `${event.clientX - rect.left}px`);
     target.style.setProperty("--faq-y", `${event.clientY - rect.top}px`);
   };
 
-  const clearCardGlow = (event) => {
+  const clearCardGlow = (event: React.MouseEvent<HTMLLIElement>) => {
     const target = event.currentTarget;
     target.style.removeProperty("--faq-x");
     target.style.removeProperty("--faq-y");
@@ -371,70 +373,24 @@ function FAQ1() {
                 onMouseLeave={clearCardGlow}
               >
                 <div
-                  className={`pointer-events-none absolute inset-0 transition-opacity duration-500 ${
-                    open ? "opacity-100" : "opacity-0 group-hover:opacity-100"
-                  }`}
-                  style={{
-                    background: `radial-gradient(240px circle at var(--faq-x, 50%) var(--faq-y, 50%), ${palette.glow}, transparent 70%)`,
-                  }}
-                />
-
-                <button
-                  type="button"
-                  id={buttonId}
-                  aria-controls={panelId}
-                  aria-expanded={open}
-                  onClick={() => toggleQuestion(index)}
-                  style={{ "--faq-outline": theme === "dark" ? "rgba(255,255,255,0.35)" : "rgba(17,17,17,0.25)" }}
-                  className="relative flex w-full items-start gap-6 px-8 py-7 text-left transition-colors duration-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--faq-outline)]"
+                  className="p-6 transition-colors duration-500"
                 >
-                  <span
-                    className={`relative flex h-12 w-12 shrink-0 items-center justify-center rounded-full border transition-all duration-500 group-hover:scale-105 ${palette.iconRing} ${palette.iconSurface}`}
+                  <button
+                    id={buttonId}
+                    aria-controls={panelId}
+                    aria-expanded={open}
+                    onClick={() => toggleQuestion(index)}
+                    className="flex w-full items-center justify-between text-left"
                   >
-                    <span
-                      className={`pointer-events-none absolute inset-0 rounded-full border opacity-30 ${
-                        palette.iconRing
-                      } ${open ? "animate-ping" : ""}`}
-                    />
-                    <svg
-                      className={`relative h-5 w-5 transition-transform duration-500 ${palette.icon} ${open ? "rotate-45" : ""}`}
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <path d="M12 5v14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                      <path d="M5 12h14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                    </svg>
-                  </span>
-
-                  <div className="flex flex-1 flex-col gap-4">
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-                      <h2 className={`text-lg font-medium leading-tight sm:text-xl ${palette.heading}`}>
-                        {item.question}
-                      </h2>
-                      {item.meta && (
-                        <span
-                          className={`inline-flex w-fit items-center rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.35em] transition-opacity duration-300 sm:ml-auto ${palette.border} ${palette.muted}`}
-                        >
-                          {item.meta}
-                        </span>
-                      )}
+                    <span className="font-medium">{item.question}</span>
+                    <span className="text-xl font-semibold">{open ? "-" : "+"}</span>
+                  </button>
+                  {open && (
+                    <div id={panelId} className="mt-4 text-sm">
+                      {item.answer}
                     </div>
-
-                    <div
-                      id={panelId}
-                      role="region"
-                      aria-labelledby={buttonId}
-                      className={`overflow-hidden text-sm leading-relaxed transition-[max-height] duration-500 ease-out ${
-                        open ? "max-h-64" : "max-h-0"
-                      } ${palette.muted}`}
-                    >
-                      <p className="pr-2">
-                        {item.answer}
-                      </p>
-                    </div>
-                  </div>
-                </button>
+                  )}
+                </div>
               </li>
             );
           })}
@@ -445,4 +401,3 @@ function FAQ1() {
 }
 
 export default FAQ1;
-export { FAQ1 };

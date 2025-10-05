@@ -435,7 +435,7 @@ export default function HistoryPage() {
                           <div className="space-y-1.5">
                             <div className={`text-[10px] font-medium uppercase tracking-wider ${palette.muted}`}>You</div>
                             <div className={`${palette.heading} text-sm leading-relaxed`}>
-                              I've been feeling overwhelmed with work lately...
+                              I&apos;ve been feeling overwhelmed with work lately...
                             </div>
                           </div>
 
@@ -443,7 +443,7 @@ export default function HistoryPage() {
                           <div className={`border-l-2 ${palette.border} pl-4 space-y-1.5`}>
                             <div className={`text-[10px] font-medium uppercase tracking-wider ${palette.muted}`}>Therapist</div>
                             <div className={`${palette.heading} text-sm leading-relaxed`}>
-                              I understand that feeling. Let's explore what specifically about work is making you feel this way. Can you tell me more about what's been happening?
+                              I understand that feeling. Let&apos;s explore what specifically about work is making you feel this way. Can you tell me more about what&apos;s been happening?
                             </div>
                           </div>
 
@@ -451,7 +451,7 @@ export default function HistoryPage() {
                           <div className="space-y-1.5">
                             <div className={`text-[10px] font-medium uppercase tracking-wider ${palette.muted}`}>You</div>
                             <div className={`${palette.heading} text-sm leading-relaxed`}>
-                              It's the constant deadlines and expectations. I feel like no matter how much I do, it's never enough.
+                              It&apos;s the constant deadlines and expectations. I feel like no matter how much I do, it&apos;s never enough.
                             </div>
                           </div>
 
@@ -467,7 +467,7 @@ export default function HistoryPage() {
                           <div className="space-y-1.5">
                             <div className={`text-[10px] font-medium uppercase tracking-wider ${palette.muted}`}>You</div>
                             <div className={`${palette.heading} text-sm leading-relaxed`}>
-                              Not really. I feel like I need to always be available or I'll fall behind. Everyone else seems to manage just fine.
+                              Not really. I feel like I need to always be available or I&apos;ll fall behind. Everyone else seems to manage just fine.
                             </div>
                           </div>
 
@@ -475,7 +475,7 @@ export default function HistoryPage() {
                           <div className={`border-l-2 ${palette.border} pl-4 space-y-1.5`}>
                             <div className={`text-[10px] font-medium uppercase tracking-wider ${palette.muted}`}>Therapist</div>
                             <div className={`${palette.heading} text-sm leading-relaxed`}>
-                              That's a common feeling, especially in today's work culture. But remember, what you see from others is often just the surface. Let's talk about what healthy boundaries might look like for you, and how to communicate them effectively to your team.
+                              That&apos;s a common feeling, especially in today&apos;s work culture. But remember, what you see from others is often just the surface. Let&apos;s talk about what healthy boundaries might look like for you, and how to communicate them effectively to your team.
                             </div>
                           </div>
 
@@ -483,7 +483,7 @@ export default function HistoryPage() {
                           <div className="space-y-1.5">
                             <div className={`text-[10px] font-medium uppercase tracking-wider ${palette.muted}`}>You</div>
                             <div className={`${palette.heading} text-sm leading-relaxed`}>
-                              I'd like that. Where should I start?
+                              I&apos;d like that. Where should I start?
                             </div>
                           </div>
 
@@ -491,7 +491,7 @@ export default function HistoryPage() {
                           <div className={`border-l-2 ${palette.border} pl-4 space-y-1.5`}>
                             <div className={`text-[10px] font-medium uppercase tracking-wider ${palette.muted}`}>Therapist</div>
                             <div className={`${palette.heading} text-sm leading-relaxed`}>
-                              Let's start by identifying one small boundary you could implement this week. What's one thing that would make a meaningful difference in your daily routine? It could be as simple as not checking emails after a certain time, or taking a proper lunch break.
+                              Let&apos;s start by identifying one small boundary you could implement this week. What&apos;s one thing that would make a meaningful difference in your daily routine? It could be as simple as not checking emails after a certain time, or taking a proper lunch break.
                             </div>
                           </div>
 
@@ -507,7 +507,7 @@ export default function HistoryPage() {
                           <div className={`border-l-2 ${palette.border} pl-4 space-y-1.5`}>
                             <div className={`text-[10px] font-medium uppercase tracking-wider ${palette.muted}`}>Therapist</div>
                             <div className={`${palette.heading} text-sm leading-relaxed`}>
-                              That's an excellent starting point. Setting a specific time boundary like that can really improve your sleep quality and help you mentally disconnect from work. How do you feel about communicating this boundary to your colleagues?
+                              That&apos;s an excellent starting point. Setting a specific time boundary like that can really improve your sleep quality and help you mentally disconnect from work. How do you feel about communicating this boundary to your colleagues?
                             </div>
                           </div>
                         </div>

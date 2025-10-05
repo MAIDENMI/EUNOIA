@@ -33,7 +33,8 @@ export function estimateWordTimings(text: string, totalDuration: number) {
  * Get audio duration from ArrayBuffer using Web Audio API
  */
 export async function getAudioDuration(arrayBuffer: ArrayBuffer): Promise<number> {
-  const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+  const AudioContextConstructor = window.AudioContext || (window as typeof window & { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+  const audioContext = new AudioContextConstructor();
   try {
     const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
     return audioBuffer.duration;

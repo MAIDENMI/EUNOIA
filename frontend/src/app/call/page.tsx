@@ -32,6 +32,34 @@ import { Button } from "@/components/ui/button";
 import { useElevenLabsAgent } from "@/hooks/useElevenLabsAgent";
 import { config } from "@/lib/config";
 
+// Web Speech API types
+interface SpeechRecognitionEvent extends Event {
+  readonly results: SpeechRecognitionResultList;
+}
+
+interface SpeechRecognitionErrorEvent extends Event {
+  readonly error: string;
+}
+
+interface SpeechRecognition extends EventTarget {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onstart: (() => void) | null;
+  onend: (() => void) | null;
+  onresult: ((event: SpeechRecognitionEvent) => void) | null;
+  onerror: ((event: SpeechRecognitionErrorEvent) => void) | null;
+  start(): void;
+  stop(): void;
+}
+
+declare global {
+  interface Window {
+    SpeechRecognition: new () => SpeechRecognition;
+    webkitSpeechRecognition: new () => SpeechRecognition;
+  }
+}
+
 export default function CallPage() {
   const [isListening, setIsListening] = useState(false);
   const [audioLevel, setAudioLevel] = useState(0);
@@ -57,7 +85,7 @@ export default function CallPage() {
   const [isAvatarReady, setIsAvatarReady] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const recognitionRef = useRef<any>(null);
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
   const talkingHeadRef = useRef<HTMLIFrameElement>(null);
   const userId = useRef<string>(`user_${Date.now()}`);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -219,8 +247,8 @@ export default function CallPage() {
       return;
     }
 
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    const recognition = new SpeechRecognition();
+    const SpeechRecognitionConstructor = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const recognition = new SpeechRecognitionConstructor();
 
     recognition.continuous = false;
     recognition.interimResults = false;
@@ -233,7 +261,7 @@ export default function CallPage() {
       setAiResponse("");
     };
 
-    recognition.onresult = (event: any) => {
+    recognition.onresult = (event: SpeechRecognitionEvent) => {
       const result = event.results[0][0].transcript;
       setTranscript(result);
       setIsRecording(false);
@@ -241,7 +269,7 @@ export default function CallPage() {
       processMessage(result);
     };
 
-    recognition.onerror = (event: any) => {
+    recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
       console.error('Speech recognition error:', event.error);
       setIsRecording(false);
       setIsListening(false);
@@ -397,7 +425,7 @@ export default function CallPage() {
     } catch {}
   }, []);
 
-  const postToIframe = (type: string, payload?: any) => {
+  const postToIframe = (type: string, payload?: Record<string, unknown>) => {
     try {
       const target = talkingHeadRef.current?.contentWindow;
       if (!target) return;
@@ -1168,8 +1196,8 @@ export default function CallPage() {
             <div className="text-sm text-gray-500 mb-6">
               <p className="mb-2"><strong>To enable voice chat:</strong></p>
               <ol className="list-decimal list-inside space-y-1">
-                <li>Click the microphone icon in your browser's address bar</li>
-                <li>Select "Allow" for microphone access</li>
+                <li>Click the microphone icon in your browser&apos;s address bar</li>
+                <li>Select &quot;Allow&quot; for microphone access</li>
                 <li>Refresh the page and try again</li>
               </ol>
             </div>
