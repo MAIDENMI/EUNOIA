@@ -19,7 +19,6 @@ interface FadingTextStreamProps {
 export function FadingTextStream({ text, speed = 100, className, lines = 3, lineHeightEm = 1.5, showGradients = true }: FadingTextStreamProps) {
   const { segments } = useTextStream({
     textStream: text,
-    mode: "fade",
     speed,
   })
   
