@@ -4,6 +4,7 @@ import AnimatedGradientBackground from "@/components/ui/animated-gradient-backgr
 import { Card } from "@/components/ui/card";
 import { Dock } from "@/components/ui/dock-two";
 import { FadingTextStream } from "@/components/ui/fading-text-stream";
+import BlurFade from "@/components/ui/blur-fade";
 import { motion, useMotionValue, animate } from "framer-motion";
 import { 
   Grid2x2, 
@@ -20,8 +21,10 @@ import {
   ChevronDown,
   ArrowUp,
   Square,
-  MessageSquare
+  MessageSquare,
+  LogOut
 } from "lucide-react";
+import { useSession, signOut } from "next-auth/react";
 import {
   PromptInput,
   PromptInputAction,
@@ -685,6 +688,20 @@ export default function CallPage() {
       {/* Gradient Background */}
       <AnimatedGradientBackground audioLevel={audioLevel} isListening={isListening} />
       
+      {/* Logout Button - Top Right */}
+      <div className="absolute top-6 right-6 z-20">
+        <BlurFade delay={0.1} inView>
+          <button
+            onClick={() => signOut({ callbackUrl: '/login' })}
+            className="text-red-500 hover:text-red-600 transition-colors cursor-pointer"
+            aria-label="Sign Out"
+            title="Logout"
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
+        </BlurFade>
+      </div>
+
       {/* Content */}
       <div className="relative z-10 flex items-center justify-center h-full p-8">
         <div className="w-full h-full flex flex-col px-6 py-2 gap-1">
@@ -800,7 +817,7 @@ export default function CallPage() {
                     )}
                     {aiResponse && (
                       <div className="bg-purple-500/20 backdrop-blur-sm p-3 rounded-lg border border-purple-400/50">
-                        <p className="text-purple-200 text-xs mb-1">EMURA:</p>
+                        <p className="text-purple-200 text-xs mb-1">SARAH:</p>
                         <FadingTextStream 
                           text={aiResponse}
                           speed={50}
@@ -819,7 +836,7 @@ export default function CallPage() {
                             <div className="w-2 h-2 bg-white rounded-full animate-bounce delay-200" />
                           </div>
                           <span className="text-white text-sm">
-                            {isAgentSpeaking ? "EMURA is speaking..." : "EMURA is thinking..."}
+                            {isAgentSpeaking ? "SARAH is speaking..." : "SARAH is thinking..."}
                           </span>
                         </div>
                       </div>
@@ -891,7 +908,7 @@ export default function CallPage() {
                       )}
                       {aiResponse && (
                         <div className="bg-purple-500/20 backdrop-blur-sm p-3 rounded-lg border border-purple-400/50">
-                          <p className="text-purple-200 text-xs mb-1">EMURA:</p>
+                          <p className="text-purple-200 text-xs mb-1">SARAH:</p>
                           <FadingTextStream 
                             text={aiResponse}
                             speed={50}
@@ -927,7 +944,7 @@ export default function CallPage() {
               opacity: showHistory ? 1 : 0,
             }}
             transition={{ duration: 0.3, ease: "easeInOut" }}
-            className="overflow-hidden h-full"
+            className="overflow-hidden h-full ml-4"
           >
               <div className="w-[450px] h-full bg-muted/30 backdrop-blur-sm border rounded-lg flex flex-col overflow-hidden">
               {/* Chat Header */}
@@ -947,7 +964,7 @@ export default function CallPage() {
                 </div>
                 <p className="text-xs text-muted-foreground">
                   {messages.length === 0 
-                    ? 'Start a conversation with EMURA' 
+                    ? 'Start a conversation with SARAH' 
                     : `${messages.length} messages`}
                 </p>
               </div>
@@ -989,7 +1006,7 @@ export default function CallPage() {
                           <div className={`text-[10px] font-medium uppercase tracking-wider ${
                             message.role === 'user' ? 'text-blue-500' : 'text-purple-500'
                           }`}>
-                            {message.role === 'user' ? 'You' : 'EMURA'}
+                            {message.role === 'user' ? 'You' : 'SARAH'}
                           </div>
                           <div className="text-sm leading-relaxed text-foreground whitespace-pre-wrap break-words">
                             {message.content}
@@ -1005,7 +1022,7 @@ export default function CallPage() {
                           className="border-l-2 border-purple-500/30 pl-4 space-y-1.5"
                         >
                           <div className="text-[10px] font-medium uppercase tracking-wider text-purple-500">
-                            EMURA
+                            SARAH
                           </div>
                           <div className="flex items-center gap-2">
                             <div className="flex gap-1">
@@ -1052,7 +1069,7 @@ export default function CallPage() {
                   }}
                 >
                   <PromptInputTextarea 
-                    placeholder="Type a message to EMURA..." 
+                    placeholder="Type a message to SARAH..." 
                     className="min-h-[60px] resize-none"
                     disabled={!isAgentConnected && useWebSocket}
                   />

@@ -3,6 +3,9 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import AnimatedGradientBackground from "@/components/ui/animated-gradient-background";
+import BlurFade from "@/components/ui/blur-fade";
+import { signOut } from "next-auth/react";
+import { LogOut } from "lucide-react";
 
 const INTRO_STYLE_ID = "history-animations";
 
@@ -277,6 +280,20 @@ export default function HistoryPage() {
         breathingRange={15}
         topOffset={0}
       />
+
+      {/* Logout Button - Top Right */}
+      <div className="absolute top-6 right-6 z-20">
+        <BlurFade delay={0.1} inView>
+          <button
+            onClick={() => signOut({ callbackUrl: '/login' })}
+            className="text-red-500 hover:text-red-600 transition-colors cursor-pointer"
+            aria-label="Sign Out"
+            title="Logout"
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
+        </BlurFade>
+      </div>
 
           <section
             className={`relative z-10 mx-auto flex max-w-7xl flex-col h-full px-6 py-6 lg:px-12 lg:py-8 ${
