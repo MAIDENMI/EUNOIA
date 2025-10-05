@@ -6,33 +6,29 @@ import AnimatedGradientBackground from "@/components/ui/animated-gradient-backgr
 
 const INTRO_STYLE_ID = "history-animations";
 
-// Sample session history data - replace with actual data from your backend
-const sessionHistory = [
-  {
-    question: "Morning Reflection",
-    answer:
-      "Discussed feelings about work-life balance and strategies for managing stress. We explored mindfulness techniques and identified key triggers for anxiety.",
-    meta: "Completed",
-  },
-  {
-    question: "Evening Check-in",
-    answer:
-      "Focused on gratitude practice and reviewed progress on personal goals. Explored relationships and communication patterns with family members.",
-    meta: "Completed",
-  },
-  {
-    question: "Midday Session",
-    answer:
-      "Deep dive into past experiences and how they shape current behavior. We worked on cognitive reframing and identified negative thought patterns to address.",
-    meta: "Completed",
-  },
-  {
-    question: "Weekend Reflection",
-    answer:
-      "Explored creative expression as a form of emotional release. Discussed the importance of self-care routines and setting healthy boundaries.",
-    meta: "Completed",
-  },
-];
+interface SessionData {
+  id: string;
+  title: string;
+  date: string;
+  duration: string;
+  messages: Array<{ role: string; content: string }>;
+  summary: string;
+}
+
+interface EmotionExchange {
+  emotion: 'happiness' | 'sadness' | 'anger' | 'fear' | 'neutral';
+  userMessage: string;
+  agentQuestion: string;
+  agentResponse: string;
+}
+
+interface EmotionAnalysis {
+  happiness: EmotionExchange[];
+  sadness: EmotionExchange[];
+  anger: EmotionExchange[];
+  fear: EmotionExchange[];
+  neutral: EmotionExchange[];
+}
 
 const palettes = {
   dark: {
@@ -73,6 +69,28 @@ export default function HistoryPage() {
   const [introReady, setIntroReady] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const [hasEntered, setHasEntered] = useState(false);
+  const [sessions, setSessions] = useState<SessionData[]>([]);
+  const [aiSummary, setAiSummary] = useState<string>("");
+  const [isLoadingSummary, setIsLoadingSummary] = useState(false);
+  const [showSummary, setShowSummary] = useState(false);
+  const [emotionAnalysis, setEmotionAnalysis] = useState<EmotionAnalysis | null>(null);
+  const [isLoadingEmotions, setIsLoadingEmotions] = useState(false);
+  const [showEmotions, setShowEmotions] = useState(false);
+  const [selectedEmotion, setSelectedEmotion] = useState<string | null>(null);
+
+  // Load sessions from localStorage
+  useEffect(() => {
+    try {
+      const savedSessions = localStorage.getItem('therapy_sessions');
+      if (savedSessions) {
+        const parsedSessions = JSON.parse(savedSessions);
+        setSessions(parsedSessions);
+        console.log('✅ Loaded sessions from localStorage:', parsedSessions.length);
+      }
+    } catch (error) {
+      console.error('❌ Error loading sessions:', error);
+    }
+  }, []);
 
   useEffect(() => {
     if (typeof document === "undefined") return;
@@ -218,7 +236,133 @@ export default function HistoryPage() {
 
   const palette = palettes.light;
 
-  const toggleQuestion = (index: number) => setActiveIndex((prev) => (prev === index ? -1 : index));
+  const toggleQuestion = (index: number) => {
+    setActiveIndex((prev) => (prev === index ? -1 : index));
+    setShowSummary(false); // Reset summary when switching sessions
+    setAiSummary("");
+    setShowEmotions(false);
+    setEmotionAnalysis(null);
+    setSelectedEmotion(null);
+  };
+
+  // Function to generate AI summary using Gemini
+  const generateSummary = async () => {
+    if (activeIndex < 0 || !sessions[activeIndex]) return;
+    
+    setIsLoadingSummary(true);
+    setShowSummary(true);
+    
+    try {
+      const session = sessions[activeIndex];
+      const conversationText = session.messages
+        .map(msg => `${msg.role === 'user' ? 'User' : 'EMURA'}: ${msg.content}`)
+        .join('\n\n');
+      
+      const response = await fetch('http://localhost:8000/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: `Please provide a concise therapeutic summary of this therapy session. Include key topics discussed, emotional themes, progress made, and any action items or insights. Keep it professional and empathetic.\n\nSession Transcript:\n${conversationText}`,
+          context: [],
+          user_id: 'summary_generator'
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to generate summary');
+      }
+
+      const data = await response.json();
+      setAiSummary(data.response);
+    } catch (error) {
+      console.error('Error generating summary:', error);
+      setAiSummary('Failed to generate summary. Please ensure the AI service is running.');
+    } finally {
+      setIsLoadingSummary(false);
+    }
+  };
+
+  // Function to analyze emotions using Gemini
+  const analyzeEmotions = async () => {
+    if (activeIndex < 0 || !sessions[activeIndex]) return;
+    
+    setIsLoadingEmotions(true);
+    setShowEmotions(true);
+    
+    try {
+      const session = sessions[activeIndex];
+      const conversationText = session.messages
+        .map((msg, idx) => `[${idx}] ${msg.role === 'user' ? 'User' : 'EMURA'}: ${msg.content}`)
+        .join('\n\n');
+      
+      const prompt = `Analyze this therapy conversation and categorize the emotional tone of each user response into one of these five emotions:
+
+1. Happiness/Joy 😊 - positive engagement, calmness, satisfaction
+2. Sadness 😔 - withdrawal, loss, emotional heaviness
+3. Anger/Frustration 😠 - agitation, injustice, unmet expectations
+4. Fear/Anxiety 😨 - worry, stress, uncertainty about future
+5. Neutral/Calm 😐 - baseline emotional state, stable or balanced mood
+
+For each user message, identify:
+- The emotion expressed
+- The agent's question that prompted it
+- The agent's follow-up response
+
+Return ONLY a valid JSON object with this exact structure (no markdown, no extra text):
+{
+  "happiness": [{"userMessage": "...", "agentQuestion": "...", "agentResponse": "..."}],
+  "sadness": [{"userMessage": "...", "agentQuestion": "...", "agentResponse": "..."}],
+  "anger": [{"userMessage": "...", "agentQuestion": "...", "agentResponse": "..."}],
+  "fear": [{"userMessage": "...", "agentQuestion": "...", "agentResponse": "..."}],
+  "neutral": [{"userMessage": "...", "agentQuestion": "...", "agentResponse": "..."}]
+}
+
+Conversation:
+${conversationText}`;
+      
+      const response = await fetch('http://localhost:8000/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: prompt,
+          context: [],
+          user_id: 'emotion_analyzer'
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to analyze emotions');
+      }
+
+      const data = await response.json();
+      
+      // Parse the JSON response
+      try {
+        // Remove markdown code blocks if present
+        let jsonText = data.response.trim();
+        if (jsonText.startsWith('```')) {
+          jsonText = jsonText.replace(/```json\n?/g, '').replace(/```\n?/g, '');
+        }
+        
+        const analysis = JSON.parse(jsonText);
+        setEmotionAnalysis(analysis);
+      } catch (parseError) {
+        console.error('Error parsing emotion analysis:', parseError);
+        setEmotionAnalysis({
+          happiness: [],
+          sadness: [],
+          anger: [],
+          fear: [],
+          neutral: []
+        });
+      }
+    } catch (error) {
+      console.error('Error analyzing emotions:', error);
+      setEmotionAnalysis(null);
+    } finally {
+      setIsLoadingEmotions(false);
+    }
+  };
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -288,7 +432,7 @@ export default function HistoryPage() {
                 <div className="flex items-center gap-3">
                   <p className={`text-[10px] uppercase tracking-[0.35em] ${palette.muted}`}>Your Journey</p>
                   <Link
-                    href="/session"
+                    href="/call"
                     className={`md:hidden relative overflow-hidden inline-flex h-8 items-center gap-1.5 rounded-2xl border backdrop-blur-xl px-3 text-[10px] font-medium transition-all duration-300 hover:-translate-y-0.5 border-purple-500/30 bg-purple-600/10 text-purple-600 hover:bg-purple-600/20 hover:border-purple-500/50 hover:shadow-lg hover:shadow-purple-500/20 ${palette.shadow}`}
                   >
                     <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -306,7 +450,7 @@ export default function HistoryPage() {
               </div>
 
               <Link
-                href="/session"
+                href="/call"
                 className={`hidden md:inline-flex relative overflow-hidden h-9 items-center gap-2 rounded-2xl border backdrop-blur-xl px-4 text-[10px] font-medium transition-all duration-300 hover:-translate-y-0.5 hover:scale-105 border-purple-500/30 bg-purple-600/10 text-purple-600 hover:bg-purple-600/20 hover:border-purple-500/50 hover:shadow-lg hover:shadow-purple-500/20 ${palette.shadow}`}
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -319,15 +463,48 @@ export default function HistoryPage() {
             <div className="grid grid-cols-1 lg:grid-cols-[1fr_2fr] gap-4 items-start flex-1 overflow-hidden">
               {/* Session List */}
               <div className="overflow-y-auto h-full pr-2" style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(0,0,0,0.15) transparent' }}>
-                <ul className="space-y-2.5">
-              {sessionHistory.map((item, index) => {
+                {sessions.length === 0 ? (
+                  <div className="flex items-center justify-center h-full">
+                    <div className="text-center space-y-4 max-w-sm">
+                      <svg
+                        className={`w-16 h-16 mx-auto ${palette.muted}`}
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={1}
+                          d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+                        />
+                      </svg>
+                      <div className="space-y-2">
+                        <p className={`text-lg font-medium ${palette.heading}`}>
+                          No Sessions Yet
+                        </p>
+                        <p className={`text-sm ${palette.muted}`}>
+                          Start your first therapy session to see your conversation history here
+                        </p>
+                        <Link
+                          href="/call"
+                          className={`inline-flex mt-4 h-9 items-center gap-2 rounded-2xl border backdrop-blur-xl px-4 text-[10px] font-medium transition-all duration-300 hover:-translate-y-0.5 border-purple-500/30 bg-purple-600/10 text-purple-600 hover:bg-purple-600/20 hover:border-purple-500/50`}
+                        >
+                          Start First Session
+                        </Link>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <ul className="space-y-2.5">
+              {sessions.map((item, index) => {
                 const open = activeIndex === index;
                 const panelId = `history-panel-${index}`;
                 const buttonId = `history-trigger-${index}`;
 
                 return (
                   <li
-                    key={item.question}
+                    key={item.id}
                     className={`group relative overflow-hidden rounded-2xl border backdrop-blur-2xl transition-all duration-300 hover:-translate-y-0.5 focus-within:-translate-y-0.5 ${palette.border} ${palette.shadow}`}
                     style={{ background: "rgba(255, 255, 255, 0.4)" }}
                     onMouseMove={setCardGlow}
@@ -368,15 +545,13 @@ export default function HistoryPage() {
                       <div className="flex flex-1 flex-col gap-2">
                         <div className="flex items-center gap-2 justify-between">
                           <h2 className={`text-sm font-medium leading-tight ${palette.heading} flex-1`}>
-                            {item.question}
+                            {item.title}
                           </h2>
-                          {item.meta && (
-                            <span
-                              className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[9px] uppercase tracking-wider ${palette.border} ${palette.muted}`}
-                            >
-                              {item.meta}
-                            </span>
-                          )}
+                          <span
+                            className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[9px] uppercase tracking-wider ${palette.border} ${palette.muted}`}
+                          >
+                            {item.duration}
+                          </span>
                         </div>
 
                         <div
@@ -388,7 +563,7 @@ export default function HistoryPage() {
                           } ${palette.muted}`}
                         >
                           <p className="pr-1">
-                            {item.answer}
+                            {item.summary}
                           </p>
                         </div>
                       </div>
@@ -397,6 +572,7 @@ export default function HistoryPage() {
                 );
               })}
                 </ul>
+                )}
               </div>
 
               {/* Conversation Viewer */}
@@ -415,101 +591,170 @@ export default function HistoryPage() {
                         <span className={palette.heading}>Session Transcript</span>
                       </div>
                     </div>
-                    <h2 className={`text-lg font-semibold ${palette.heading}`}>
-                      {activeIndex >= 0 ? sessionHistory[activeIndex].question : "Conversation"}
-                    </h2>
+                    <div className="flex items-center justify-between gap-3">
+                      <h2 className={`text-lg font-semibold ${palette.heading} flex-1`}>
+                        {activeIndex >= 0 && sessions[activeIndex] ? sessions[activeIndex].title : "Conversation"}
+                      </h2>
+                      {activeIndex >= 0 && sessions[activeIndex] && (
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={analyzeEmotions}
+                            disabled={isLoadingEmotions}
+                            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all duration-200 hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed border-blue-500/30 bg-blue-600/10 text-blue-600 hover:bg-blue-600/20 hover:border-blue-500/50 hover:shadow-md`}
+                          >
+                            {isLoadingEmotions ? (
+                              <>
+                                <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                <span>Analyzing...</span>
+                              </>
+                            ) : (
+                              <>
+                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                <span>Emotions</span>
+                              </>
+                            )}
+                          </button>
+                          <button
+                            onClick={generateSummary}
+                            disabled={isLoadingSummary}
+                            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all duration-200 hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed border-purple-500/30 bg-purple-600/10 text-purple-600 hover:bg-purple-600/20 hover:border-purple-500/50 hover:shadow-md`}
+                          >
+                            {isLoadingSummary ? (
+                              <>
+                                <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                <span>Generating...</span>
+                              </>
+                            ) : (
+                              <>
+                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                                <span>Summarize</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   {/* Conversation Content */}
                   <div className="flex-1 overflow-y-auto px-5 py-4" style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(0,0,0,0.15) transparent' }}>
-                    {activeIndex >= 0 ? (
+                    {activeIndex >= 0 && sessions[activeIndex] ? (
                       <div className="space-y-4 max-w-3xl">
+                        {/* AI Summary Section */}
+                        {showSummary && (
+                          <div className="p-4 rounded-lg border border-purple-500/30 bg-gradient-to-r from-purple-500/10 to-blue-500/10 space-y-2">
+                            <div className="flex items-center gap-2">
+                              <svg className="w-4 h-4 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                              </svg>
+                              <h3 className={`text-sm font-semibold ${palette.heading}`}>AI-Generated Summary</h3>
+                            </div>
+                            <div className={`text-sm leading-relaxed ${palette.heading} whitespace-pre-wrap`}>
+                              {aiSummary || 'Generating summary...'}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Emotion Analysis Section */}
+                        {showEmotions && emotionAnalysis && (
+                          <div className="space-y-3">
+                            <div className="flex items-center gap-2 mb-2">
+                              <svg className="w-4 h-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                              <h3 className={`text-sm font-semibold ${palette.heading}`}>Emotion Analysis</h3>
+                            </div>
+                            
+                            {/* Emotion Filter Buttons */}
+                            <div className="flex flex-wrap gap-2">
+                              {[
+                                { key: 'happiness', label: 'Happiness 😊', color: 'yellow', count: emotionAnalysis.happiness?.length || 0 },
+                                { key: 'sadness', label: 'Sadness 😔', color: 'blue', count: emotionAnalysis.sadness?.length || 0 },
+                                { key: 'anger', label: 'Anger 😠', color: 'red', count: emotionAnalysis.anger?.length || 0 },
+                                { key: 'fear', label: 'Fear 😨', color: 'purple', count: emotionAnalysis.fear?.length || 0 },
+                                { key: 'neutral', label: 'Neutral 😐', color: 'gray', count: emotionAnalysis.neutral?.length || 0 }
+                              ].map(({ key, label, color, count }) => (
+                                <button
+                                  key={key}
+                                  onClick={() => setSelectedEmotion(selectedEmotion === key ? null : key)}
+                                  className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200 hover:scale-105 ${
+                                    selectedEmotion === key
+                                      ? `bg-${color}-500/30 border-${color}-500/50 text-${color}-700`
+                                      : `bg-${color}-500/10 border-${color}-500/30 text-${color}-600 hover:bg-${color}-500/20`
+                                  } border`}
+                                >
+                                  {label} ({count})
+                                </button>
+                              ))}
+                            </div>
+
+                            {/* Selected Emotion Exchanges */}
+                            {selectedEmotion && emotionAnalysis[selectedEmotion as keyof EmotionAnalysis]?.length > 0 && (
+                              <div className="space-y-3 mt-4">
+                                {emotionAnalysis[selectedEmotion as keyof EmotionAnalysis].map((exchange, idx) => (
+                                  <div key={idx} className="p-3 rounded-lg border border-gray-200 bg-white/50 space-y-2">
+                                    <div className="space-y-1">
+                                      <p className="text-[10px] font-semibold text-purple-600 uppercase tracking-wider">Agent Question</p>
+                                      <p className="text-sm text-gray-700">{exchange.agentQuestion}</p>
+                                    </div>
+                                    <div className="space-y-1">
+                                      <p className="text-[10px] font-semibold text-blue-600 uppercase tracking-wider">Your Response</p>
+                                      <p className="text-sm text-gray-700">{exchange.userMessage}</p>
+                                    </div>
+                                    <div className="space-y-1">
+                                      <p className="text-[10px] font-semibold text-purple-600 uppercase tracking-wider">Agent Follow-up</p>
+                                      <p className="text-sm text-gray-700">{exchange.agentResponse}</p>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
                         {/* Timestamp header */}
                         <div className={`text-[9px] uppercase tracking-wider ${palette.muted} pb-2 border-b ${palette.border}`}>
-                          March 15, 2025 • 3:24 PM - 3:45 PM
+                          {(showSummary || showEmotions) && <span className="text-purple-600 font-semibold">FULL TRANSCRIPT • </span>}
+                          {new Date(sessions[activeIndex].date).toLocaleDateString('en-US', { 
+                            month: 'long', 
+                            day: 'numeric', 
+                            year: 'numeric' 
+                          }).toUpperCase()} • {new Date(sessions[activeIndex].date).toLocaleTimeString('en-US', { 
+                            hour: 'numeric', 
+                            minute: '2-digit',
+                            hour12: true 
+                          })} • Duration: {sessions[activeIndex].duration}
                         </div>
 
                         {/* Message exchange */}
                         <div className="space-y-4">
-                          {/* User message */}
-                          <div className="space-y-1.5">
-                            <div className={`text-[10px] font-medium uppercase tracking-wider ${palette.muted}`}>You</div>
-                            <div className={`${palette.heading} text-sm leading-relaxed`}>
-                              I've been feeling overwhelmed with work lately...
-                            </div>
-                          </div>
-
-                          {/* Divider */}
-                          <div className={`border-l-2 ${palette.border} pl-4 space-y-1.5`}>
-                            <div className={`text-[10px] font-medium uppercase tracking-wider ${palette.muted}`}>Therapist</div>
-                            <div className={`${palette.heading} text-sm leading-relaxed`}>
-                              I understand that feeling. Let's explore what specifically about work is making you feel this way. Can you tell me more about what's been happening?
-                            </div>
-                          </div>
-
-                          {/* User message */}
-                          <div className="space-y-1.5">
-                            <div className={`text-[10px] font-medium uppercase tracking-wider ${palette.muted}`}>You</div>
-                            <div className={`${palette.heading} text-sm leading-relaxed`}>
-                              It's the constant deadlines and expectations. I feel like no matter how much I do, it's never enough.
-                            </div>
-                          </div>
-
-                          {/* Therapist response */}
-                          <div className={`border-l-2 ${palette.border} pl-4 space-y-1.5`}>
-                            <div className={`text-[10px] font-medium uppercase tracking-wider ${palette.muted}`}>Therapist</div>
-                            <div className={`${palette.heading} text-sm leading-relaxed`}>
-                              Those are valid concerns. Have you had a chance to set boundaries around your work hours? It sounds like you might be experiencing burnout.
-                            </div>
-                          </div>
-
-                          {/* User message */}
-                          <div className="space-y-1.5">
-                            <div className={`text-[10px] font-medium uppercase tracking-wider ${palette.muted}`}>You</div>
-                            <div className={`${palette.heading} text-sm leading-relaxed`}>
-                              Not really. I feel like I need to always be available or I'll fall behind. Everyone else seems to manage just fine.
-                            </div>
-                          </div>
-
-                          {/* Therapist response */}
-                          <div className={`border-l-2 ${palette.border} pl-4 space-y-1.5`}>
-                            <div className={`text-[10px] font-medium uppercase tracking-wider ${palette.muted}`}>Therapist</div>
-                            <div className={`${palette.heading} text-sm leading-relaxed`}>
-                              That's a common feeling, especially in today's work culture. But remember, what you see from others is often just the surface. Let's talk about what healthy boundaries might look like for you, and how to communicate them effectively to your team.
-                            </div>
-                          </div>
-
-                          {/* User message */}
-                          <div className="space-y-1.5">
-                            <div className={`text-[10px] font-medium uppercase tracking-wider ${palette.muted}`}>You</div>
-                            <div className={`${palette.heading} text-sm leading-relaxed`}>
-                              I'd like that. Where should I start?
-                            </div>
-                          </div>
-
-                          {/* Therapist response */}
-                          <div className={`border-l-2 ${palette.border} pl-4 space-y-1.5`}>
-                            <div className={`text-[10px] font-medium uppercase tracking-wider ${palette.muted}`}>Therapist</div>
-                            <div className={`${palette.heading} text-sm leading-relaxed`}>
-                              Let's start by identifying one small boundary you could implement this week. What's one thing that would make a meaningful difference in your daily routine? It could be as simple as not checking emails after a certain time, or taking a proper lunch break.
-                            </div>
-                          </div>
-
-                          {/* User message */}
-                          <div className="space-y-1.5">
-                            <div className={`text-[10px] font-medium uppercase tracking-wider ${palette.muted}`}>You</div>
-                            <div className={`${palette.heading} text-sm leading-relaxed`}>
-                              I think stopping work emails after 7 PM would help. I always find myself checking them before bed and it keeps me up.
-                            </div>
-                          </div>
-
-                          {/* Therapist response */}
-                          <div className={`border-l-2 ${palette.border} pl-4 space-y-1.5`}>
-                            <div className={`text-[10px] font-medium uppercase tracking-wider ${palette.muted}`}>Therapist</div>
-                            <div className={`${palette.heading} text-sm leading-relaxed`}>
-                              That's an excellent starting point. Setting a specific time boundary like that can really improve your sleep quality and help you mentally disconnect from work. How do you feel about communicating this boundary to your colleagues?
-                            </div>
-                          </div>
+                          {sessions[activeIndex].messages.map((message, idx) => (
+                            message.role === 'user' ? (
+                              <div key={idx} className="space-y-1.5">
+                                <div className={`text-[10px] font-medium uppercase tracking-wider text-blue-500`}>You</div>
+                                <div className={`${palette.heading} text-sm leading-relaxed whitespace-pre-wrap`}>
+                                  {message.content}
+                                </div>
+                              </div>
+                            ) : (
+                              <div key={idx} className={`border-l-2 border-purple-500/30 pl-4 space-y-1.5`}>
+                                <div className={`text-[10px] font-medium uppercase tracking-wider text-purple-500`}>EMURA</div>
+                                <div className={`${palette.heading} text-sm leading-relaxed whitespace-pre-wrap`}>
+                                  {message.content}
+                                </div>
+                              </div>
+                            )
+                          ))}
                         </div>
                       </div>
                     ) : (
@@ -530,10 +775,12 @@ export default function HistoryPage() {
                           </svg>
                           <div className="space-y-2">
                             <p className={`text-lg font-medium ${palette.heading}`}>
-                              No Session Selected
+                              {sessions.length === 0 ? 'No Sessions Yet' : 'No Session Selected'}
                             </p>
                             <p className={`text-sm ${palette.muted}`}>
-                              Select a session from the list to view the conversation transcript
+                              {sessions.length === 0 
+                                ? 'Start your first therapy session to see your conversation history'
+                                : 'Select a session from the list to view the conversation transcript'}
                             </p>
                           </div>
                         </div>

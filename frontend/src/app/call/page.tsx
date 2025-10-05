@@ -20,8 +20,10 @@ import {
   ChevronDown,
   ArrowUp,
   Square,
-  MessageSquare
+  MessageSquare,
+  FileText
 } from "lucide-react";
+import Link from "next/link";
 import {
   PromptInput,
   PromptInputAction,
@@ -55,6 +57,7 @@ export default function CallPage() {
   const [showPermissionHelp, setShowPermissionHelp] = useState(false);
   const [chatInputValue, setChatInputValue] = useState("");
   const [isAvatarReady, setIsAvatarReady] = useState(false);
+  const [hasEndedSession, setHasEndedSession] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
@@ -477,6 +480,11 @@ export default function CallPage() {
         }, 'http://localhost:8080');
       }
       
+      // Save session to history before ending
+      if (messages.length > 0) {
+        saveSessionToHistory();
+      }
+      
       // Disconnect WebSocket immediately
       await stopConversation();
       stopAudioLevelMonitoring();
@@ -484,6 +492,9 @@ export default function CallPage() {
       // Clear UI
       setTranscript("");
       setAiResponse("");
+      
+      // Mark session as ended
+      setHasEndedSession(true);
       
       console.log('✅ Conversation ended');
     } else {
@@ -496,6 +507,9 @@ export default function CallPage() {
       console.log('🚀 Starting conversation with Agent ID:', config.elevenlabs.agentId);
       console.log('🎯 Flow: Agent provides text → TalkingHead handles TTS + animation');
       console.log('🔊 Voice Provider:', voiceProvider === 'eleven' ? 'ElevenLabs TTS' : 'Google TTS');
+      
+      // Reset session ended state when starting new conversation
+      setHasEndedSession(false);
       
       // Request microphone permission
       try {
@@ -517,6 +531,33 @@ export default function CallPage() {
       }
     }
   }, [useWebSocket, isAgentConnected, sendContextualUpdate, stopConversation, startConversation, voiceProvider, interruptAgent]);
+
+  // Function to save session to history
+  const saveSessionToHistory = () => {
+    try {
+      const sessionData = {
+        id: `session_${Date.now()}`,
+        title: `Therapy Session - ${new Date().toLocaleDateString()}`,
+        date: new Date().toISOString(),
+        duration: formatTime(callTime),
+        messages: messages,
+        summary: messages.length > 0 ? messages[0].content.substring(0, 100) + '...' : 'No conversation'
+      };
+
+      // Get existing sessions
+      const existingSessions = JSON.parse(localStorage.getItem('therapy_sessions') || '[]');
+      
+      // Add new session
+      existingSessions.unshift(sessionData);
+      
+      // Save back to localStorage
+      localStorage.setItem('therapy_sessions', JSON.stringify(existingSessions));
+      
+      console.log('✅ Session saved to history');
+    } catch (error) {
+      console.error('❌ Error saving session:', error);
+    }
+  };
 
   // Global keyboard shortcuts
   useEffect(() => {
@@ -1027,63 +1068,83 @@ export default function CallPage() {
                 )}
               </div>
 
-              {/* Chat Input */}
+              {/* Chat Input or AI Analysis Link */}
               <div className="p-4 border-t">
-                <PromptInput
-                  value={chatInputValue}
-                  onValueChange={setChatInputValue}
-                  isLoading={isProcessing || isAgentSpeaking}
-                  onSubmit={() => {
-                    const message = chatInputValue.trim();
-                    if (message) {
-                      // Add user message to chat
-                      setMessages(prev => [...prev, { role: 'user', content: message }]);
-                      
-                      // Send to agent if connected, otherwise use legacy mode
-                      if (useWebSocket && isAgentConnected) {
-                        sendContextualUpdate(message);
-                      } else {
-                        processMessage(message);
+                {hasEndedSession && messages.length > 0 ? (
+                  // Show AI Analysis link after session ends
+                  <Link href="/history">
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="flex items-center justify-center gap-3 p-4 bg-gradient-to-r from-purple-500/20 to-blue-500/20 hover:from-purple-500/30 hover:to-blue-500/30 rounded-lg border border-purple-500/30 hover:border-purple-500/50 transition-all cursor-pointer group"
+                    >
+                      <FileText className="w-5 h-5 text-purple-400 group-hover:text-purple-300 transition-colors" />
+                      <div className="flex flex-col items-start">
+                        <span className="text-sm font-semibold text-purple-300 group-hover:text-purple-200 transition-colors">
+                          AI Analysis
+                        </span>
+                        <span className="text-xs text-purple-400/70">
+                          Session saved • Click to review
+                        </span>
+                      </div>
+                    </motion.div>
+                  </Link>
+                ) : (
+                  // Show normal chat input during active session
+                  <PromptInput
+                    value={chatInputValue}
+                    onValueChange={setChatInputValue}
+                    isLoading={isProcessing || isAgentSpeaking}
+                    onSubmit={() => {
+                      const message = chatInputValue.trim();
+                      if (message) {
+                        // Add user message to chat
+                        setMessages(prev => [...prev, { role: 'user', content: message }]);
+                        
+                        // Send to agent if connected, otherwise use legacy mode
+                        if (useWebSocket && isAgentConnected) {
+                          sendContextualUpdate(message);
+                        } else {
+                          processMessage(message);
+                        }
+                        
+                        // Clear input
+                        setChatInputValue('');
                       }
-                      
-                      // Clear input
-                      setChatInputValue('');
-                    }
-                  }}
-                >
-                  <PromptInputTextarea 
-                    placeholder="Type a message to EMURA..." 
-                    className="min-h-[60px] resize-none"
-                    disabled={!isAgentConnected && useWebSocket}
-                  />
-                  <PromptInputActions>
-                    <PromptInputAction tooltip="Send Message">
-                      <Button 
-                        size="sm"
-                        type="submit"
-                        disabled={!isAgentConnected && useWebSocket || !chatInputValue.trim()}
-                      >
-                        <ArrowUp className="w-4 h-4" />
-                      </Button>
-                    </PromptInputAction>
-                    {isAgentConnected && isAgentSpeaking && (
-                      <PromptInputAction tooltip="Stop Speaking">
+                    }}
+                  >
+                    <PromptInputTextarea 
+                      placeholder="Type a message to EMURA..." 
+                      className="min-h-[60px] resize-none"
+                      disabled={!isAgentConnected && useWebSocket}
+                    />
+                    <PromptInputActions>
+                      <PromptInputAction tooltip="Send Message">
                         <Button 
                           size="sm"
-                          variant="destructive"
-                          onClick={() => {
-                            interruptAgent();
-                            setIsSpeaking(false);
-                          }}
+                          type="submit"
+                          disabled={!isAgentConnected && useWebSocket || !chatInputValue.trim()}
                         >
-                          <Square className="w-4 h-4" />
+                          <ArrowUp className="w-4 h-4" />
                         </Button>
                       </PromptInputAction>
-                    )}
-                  </PromptInputActions>
-                </PromptInput>
-                
-
+                      {isAgentConnected && isAgentSpeaking && (
+                        <PromptInputAction tooltip="Stop Speaking">
+                          <Button 
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => {
+                              interruptAgent();
+                              setIsSpeaking(false);
+                            }}
+                          >
+                            <Square className="w-4 h-4" />
+                          </Button>
+                        </PromptInputAction>
+                      )}
+                    </PromptInputActions>
+                  </PromptInput>
+                )}
               </div>
             </div>
                     </motion.div>
