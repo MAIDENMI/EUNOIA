@@ -463,7 +463,7 @@ ${conversationText}`;
       const maxWidth = pageWidth - 2 * margin;
       let yPosition = margin;
       
-      // Helper function to add text with word wrap and optional highlight
+      // Helper function to add text with word wrap and optional light highlight
       const addText = (text: string, fontSize: number, color: [number, number, number], isBold: boolean = false, highlightColor?: [number, number, number]) => {
         pdf.setFontSize(fontSize);
         pdf.setTextColor(color[0], color[1], color[2]);
@@ -478,11 +478,15 @@ ${conversationText}`;
             yPosition = margin;
           }
           
-          // Add highlight background if specified
+          // Add LIGHT highlight background if specified
           if (highlightColor) {
             const textWidth = pdf.getTextWidth(line);
-            pdf.setFillColor(highlightColor[0], highlightColor[1], highlightColor[2], 0.2);
-            pdf.rect(margin - 2, yPosition - fontSize * 0.35, textWidth + 4, fontSize * 0.5, 'F');
+            const lineHeight = fontSize * 0.5;
+            // Use very light colors with high transparency
+            pdf.setFillColor(highlightColor[0], highlightColor[1], highlightColor[2]);
+            pdf.setGState(new pdf.GState({ opacity: 0.15 }));
+            pdf.rect(margin - 1, yPosition - fontSize * 0.35, textWidth + 2, lineHeight, 'F');
+            pdf.setGState(new pdf.GState({ opacity: 1.0 }));
           }
           
           pdf.text(line, margin, yPosition);
@@ -491,8 +495,6 @@ ${conversationText}`;
         
         yPosition += 5;
       };
-      
-      // Title
       addText(session.title, 18, [88, 28, 135], true);
       yPosition += 5;
       
@@ -515,11 +517,11 @@ ${conversationText}`;
       // Emotion Legend
       addText('EMOTION COLOR LEGEND', 14, [88, 28, 135], true);
       const emotionColors = [
-        { name: 'Happiness/Joy', color: [255, 193, 7] },
-        { name: 'Sadness', color: [33, 150, 243] },
-        { name: 'Anger/Frustration', color: [244, 67, 54] },
-        { name: 'Fear/Anxiety', color: [156, 39, 176] },
-        { name: 'Neutral/Calm', color: [158, 158, 158] }
+        { name: "Happiness/Joy 😊", color: [255, 235, 59] },
+        { name: "Sadness 😔", color: [100, 181, 246] },
+        { name: "Anger/Frustration ��", color: [239, 154, 154] },
+        { name: "Fear/Anxiety 😨", color: [206, 147, 216] },
+        { name: "Neutral/Calm 😐", color: [189, 189, 189] }
       ];
       
       emotionColors.forEach(({ name, color }) => {
@@ -546,17 +548,29 @@ ${conversationText}`;
           console.log(`Message: "${message.content.substring(0, 50)}..." -> Emotion: ${emotion}`);
           
           const colorMap: Record<string, [number, number, number]> = {
-            happiness: [255, 193, 7],    // Yellow
-            sadness: [33, 150, 243],      // Blue
-            anger: [244, 67, 54],         // Red
-            fear: [156, 39, 176],         // Purple
-            neutral: [158, 158, 158]      // Gray
+            happiness: [255, 235, 59],    // Lighter Yellow
+            sadness: [100, 181, 246],     // Lighter Blue
+            anger: [239, 154, 154],       // Lighter Red
+            fear: [206, 147, 216],        // Lighter Purple
+            neutral: [189, 189, 189]      // Lighter Gray
           };
+          
+          const emotionLabels: Record<string, string> = {
+            happiness: '😊 Happiness/Joy',
+            sadness: '😔 Sadness',
+            anger: '😠 Anger/Frustration',
+            fear: '😨 Fear/Anxiety',
+            neutral: '😐 Neutral/Calm'
+          };
+          
           const color = colorMap[emotion];
+          const emotionLabel = emotionLabels[emotion];
           
           addText('YOU:', 10, [33, 150, 243], true);
           // Add highlighted text with emotion color
           addText(message.content, 9, [50, 50, 50], false, color);
+          // Add emotion label after the message
+          addText(`   [${emotionLabel}]`, 8, color, true);
         } else {
           addText('EMURA:', 10, [156, 39, 176], true);
           addText(message.content, 9, [50, 50, 50]);
