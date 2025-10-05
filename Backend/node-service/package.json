@@ -20,7 +20,7 @@
     "axios": "^1.7.9",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
-    "elevenlabs": "^0.18.3",
+    "elevenlabs": "^0.18.2",
     "express": "^4.21.2",
     "socket.io": "^4.8.1"
   },

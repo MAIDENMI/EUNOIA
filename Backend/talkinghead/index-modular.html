@@ -732,6 +732,14 @@
           }
           break;
           
+        case 'stop':
+        case 'STOP':
+        case 'stopSpeaking':
+        case 'interrupt':
+          console.log('🛑 Received stop command from parent window');
+          stopSpeaking();
+          break;
+          
         case 'toggleControls':
           const controlsEl = document.getElementById('controls');
           if (payload.visible) {

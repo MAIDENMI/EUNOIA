@@ -145,6 +145,28 @@ export default function CallPage() {
     isMuted: !isMicOn, // Pass mute state to agent
     onUserTranscript: (userTranscript) => {
       console.log('👤 User said:', userTranscript);
+      
+      // Interrupt agent if it's currently speaking
+      if (isSpeaking || isAgentSpeaking) {
+        console.log('🛑 User interrupted - stopping agent speech');
+        setIsSpeaking(false);
+        interruptAgent();
+        
+        // Stop TalkingHead immediately
+        if (talkingHeadRef.current && talkingHeadRef.current.contentWindow) {
+          const stopMessages = [
+            { type: 'stop' },
+            { type: 'STOP' },
+            { type: 'stopSpeaking' },
+            { type: 'interrupt' }
+          ];
+          
+          stopMessages.forEach(msg => {
+            talkingHeadRef.current?.contentWindow?.postMessage(msg, 'http://localhost:8080');
+          });
+        }
+      }
+      
       setTranscript(userTranscript);
       setMessages(prev => [...prev, { role: 'user', content: userTranscript }]);
     },
@@ -371,14 +393,25 @@ export default function CallPage() {
     });
   };
 
-  // Timer for call duration
+  // Timer for call duration - only runs when connected
   useEffect(() => {
-    const intervalId = setInterval(() => {
-      setCallTime((t) => t + 1);
-    }, 1000);
+    let intervalId: NodeJS.Timeout | null = null;
+    
+    if (isAgentConnected) {
+      intervalId = setInterval(() => {
+        setCallTime((t) => t + 1);
+      }, 1000);
+    } else {
+      // Reset timer when not connected
+      setCallTime(0);
+    }
 
-    return () => clearInterval(intervalId);
-  }, []);
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+    };
+  }, [isAgentConnected]);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -469,12 +502,19 @@ export default function CallPage() {
       setIsSpeaking(false);
       interruptAgent(); // Stop agent audio playback
       
-      // Stop TalkingHead from speaking
+      // Stop TalkingHead from speaking - try multiple message types for compatibility
       if (talkingHeadRef.current && talkingHeadRef.current.contentWindow) {
         console.log('🔇 Stopping TalkingHead speech');
-        talkingHeadRef.current.contentWindow.postMessage({
-          type: 'stop',
-        }, 'http://localhost:8080');
+        const stopMessages = [
+          { type: 'stop' },
+          { type: 'STOP' },
+          { type: 'stopSpeaking' },
+          { type: 'interrupt' }
+        ];
+        
+        stopMessages.forEach(msg => {
+          talkingHeadRef.current?.contentWindow?.postMessage(msg, 'http://localhost:8080');
+        });
       }
       
       // Disconnect WebSocket immediately
@@ -1054,14 +1094,14 @@ export default function CallPage() {
                   <PromptInputTextarea 
                     placeholder="Type a message to EMURA..." 
                     className="min-h-[60px] resize-none"
-                    disabled={!isAgentConnected && useWebSocket}
+                    disabled={false}
                   />
                   <PromptInputActions>
                     <PromptInputAction tooltip="Send Message">
                       <Button 
                         size="sm"
                         type="submit"
-                        disabled={!isAgentConnected && useWebSocket || !chatInputValue.trim()}
+                        disabled={!chatInputValue.trim()}
                       >
                         <ArrowUp className="w-4 h-4" />
                       </Button>
