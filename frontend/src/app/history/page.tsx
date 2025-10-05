@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import AnimatedGradientBackground from "@/components/ui/animated-gradient-background";
+import jsPDF from 'jspdf';
 
 const INTRO_STYLE_ID = "history-animations";
 
@@ -77,6 +78,7 @@ export default function HistoryPage() {
   const [isLoadingEmotions, setIsLoadingEmotions] = useState(false);
   const [showEmotions, setShowEmotions] = useState(false);
   const [selectedEmotion, setSelectedEmotion] = useState<string | null>(null);
+  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
 
   // Load sessions from localStorage
   useEffect(() => {
@@ -364,6 +366,218 @@ ${conversationText}`;
     }
   };
 
+  // Function to generate PDF report with emotion-coded conversation
+  const generatePDFReport = async () => {
+    if (activeIndex < 0 || !sessions[activeIndex]) return;
+    
+    setIsGeneratingReport(true);
+    
+    try {
+      const session = sessions[activeIndex];
+      console.log('📄 Starting PDF generation for session:', session.title);
+      
+      // First, get the summary - ALWAYS generate it fresh
+      let summary = '';
+      const conversationText = session.messages
+        .map(msg => `${msg.role === 'user' ? 'User' : 'EMURA'}: ${msg.content}`)
+        .join('\n\n');
+      
+      console.log('🤖 Generating summary...');
+      const summaryResponse = await fetch('http://localhost:8000/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: `Please provide a concise therapeutic summary of this therapy session. Include key topics discussed, emotional themes, progress made, and any action items or insights. Keep it professional and empathetic.\n\nSession Transcript:\n${conversationText}`,
+          context: [],
+          user_id: 'summary_generator'
+        })
+      });
+      
+      if (summaryResponse.ok) {
+        const summaryData = await summaryResponse.json();
+        summary = summaryData.response;
+        console.log('✅ Summary generated:', summary.substring(0, 100) + '...');
+      } else {
+        console.error('❌ Failed to generate summary');
+        summary = 'Unable to generate summary at this time.';
+      }
+      
+      // Get emotion analysis - ALWAYS generate it fresh
+      let emotions: EmotionAnalysis | null = null;
+      console.log('🎭 Analyzing emotions...');
+      const emotionConversationText = session.messages
+        .map((msg, idx) => `[${idx}] ${msg.role === 'user' ? 'User' : 'EMURA'}: ${msg.content}`)
+        .join('\n\n');
+      
+      const emotionResponse = await fetch('http://localhost:8000/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: `Analyze this therapy conversation and categorize the emotional tone of each user response into one of these five emotions:\n\n1. Happiness/Joy \ud83d\ude0a\n2. Sadness \ud83d\ude14\n3. Anger/Frustration \ud83d\ude20\n4. Fear/Anxiety \ud83d\ude28\n5. Neutral/Calm \ud83d\ude10\n\nReturn ONLY a valid JSON object with this exact structure (no markdown):\n{\n  "happiness": [{"userMessage": "...", "agentQuestion": "...", "agentResponse": "..."}],\n  "sadness": [{"userMessage": "...", "agentQuestion": "...", "agentResponse": "..."}],\n  "anger": [{"userMessage": "...", "agentQuestion": "...", "agentResponse": "..."}],\n  "fear": [{"userMessage": "...", "agentQuestion": "...", "agentResponse": "..."}],\n  "neutral": [{"userMessage": "...", "agentQuestion": "...", "agentResponse": "..."}]\n}\n\nConversation:\n${emotionConversationText}`,
+          context: [],
+          user_id: 'emotion_analyzer'
+        })
+      });
+      
+      if (emotionResponse.ok) {
+        const emotionData = await emotionResponse.json();
+        let jsonText = emotionData.response.trim();
+        if (jsonText.startsWith('```')) {
+          jsonText = jsonText.replace(/```json\n?/g, '').replace(/```\n?/g, '');
+        }
+        try {
+          emotions = JSON.parse(jsonText);
+          console.log('✅ Emotions analyzed:', emotions);
+        } catch (parseError) {
+          console.error('❌ Failed to parse emotion JSON:', parseError);
+          emotions = {
+            happiness: [],
+            sadness: [],
+            anger: [],
+            fear: [],
+            neutral: []
+          };
+        }
+      }
+      
+      // Create emotion map for quick lookup
+      const emotionMap = new Map<string, string>();
+      if (emotions) {
+        Object.entries(emotions).forEach(([emotion, exchanges]) => {
+          exchanges.forEach((exchange: EmotionExchange) => {
+            // Normalize the message for better matching
+            const normalizedMsg = exchange.userMessage.trim().toLowerCase();
+            emotionMap.set(normalizedMsg, emotion);
+            // Also store original for exact matching
+            emotionMap.set(exchange.userMessage.trim(), emotion);
+          });
+        });
+      }
+      console.log('📊 Emotion map created with', emotionMap.size, 'entries');
+      
+      // Generate PDF
+      const pdf = new jsPDF();
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const margin = 20;
+      const maxWidth = pageWidth - 2 * margin;
+      let yPosition = margin;
+      
+      // Helper function to add text with word wrap and optional highlight
+      const addText = (text: string, fontSize: number, color: [number, number, number], isBold: boolean = false, highlightColor?: [number, number, number]) => {
+        pdf.setFontSize(fontSize);
+        pdf.setTextColor(color[0], color[1], color[2]);
+        if (isBold) pdf.setFont('helvetica', 'bold');
+        else pdf.setFont('helvetica', 'normal');
+        
+        const lines = pdf.splitTextToSize(text, maxWidth);
+        
+        lines.forEach((line: string) => {
+          if (yPosition > pageHeight - margin) {
+            pdf.addPage();
+            yPosition = margin;
+          }
+          
+          // Add highlight background if specified
+          if (highlightColor) {
+            const textWidth = pdf.getTextWidth(line);
+            pdf.setFillColor(highlightColor[0], highlightColor[1], highlightColor[2], 0.2);
+            pdf.rect(margin - 2, yPosition - fontSize * 0.35, textWidth + 4, fontSize * 0.5, 'F');
+          }
+          
+          pdf.text(line, margin, yPosition);
+          yPosition += fontSize * 0.5;
+        });
+        
+        yPosition += 5;
+      };
+      
+      // Title
+      addText(session.title, 18, [88, 28, 135], true);
+      yPosition += 5;
+      
+      // Date and Duration
+      const dateStr = new Date(session.date).toLocaleDateString('en-US', { 
+        month: 'long', day: 'numeric', year: 'numeric' 
+      });
+      addText(`${dateStr} • Duration: ${session.duration}`, 10, [100, 100, 100]);
+      yPosition += 10;
+      
+      // Summary Section
+      addText('THERAPEUTIC SUMMARY', 14, [88, 28, 135], true);
+      if (summary) {
+        addText(summary, 10, [50, 50, 50]);
+      } else {
+        addText('Summary not available', 10, [150, 150, 150]);
+      }
+      yPosition += 10;
+      
+      // Emotion Legend
+      addText('EMOTION COLOR LEGEND', 14, [88, 28, 135], true);
+      const emotionColors = [
+        { name: 'Happiness/Joy', color: [255, 193, 7] },
+        { name: 'Sadness', color: [33, 150, 243] },
+        { name: 'Anger/Frustration', color: [244, 67, 54] },
+        { name: 'Fear/Anxiety', color: [156, 39, 176] },
+        { name: 'Neutral/Calm', color: [158, 158, 158] }
+      ];
+      
+      emotionColors.forEach(({ name, color }) => {
+        pdf.setFillColor(color[0], color[1], color[2]);
+        pdf.rect(margin, yPosition - 3, 5, 5, 'F');
+        pdf.setTextColor(50, 50, 50);
+        pdf.setFontSize(9);
+        pdf.text(name, margin + 8, yPosition);
+        yPosition += 7;
+      });
+      yPosition += 10;
+      
+      // Full Conversation
+      addText('FULL CONVERSATION TRANSCRIPT', 14, [88, 28, 135], true);
+      
+      session.messages.forEach((message, idx) => {
+        if (message.role === 'user') {
+          // Try multiple matching strategies
+          const normalizedContent = message.content.trim().toLowerCase();
+          let emotion = emotionMap.get(message.content.trim()) || 
+                       emotionMap.get(normalizedContent) || 
+                       'neutral';
+          
+          console.log(`Message: "${message.content.substring(0, 50)}..." -> Emotion: ${emotion}`);
+          
+          const colorMap: Record<string, [number, number, number]> = {
+            happiness: [255, 193, 7],    // Yellow
+            sadness: [33, 150, 243],      // Blue
+            anger: [244, 67, 54],         // Red
+            fear: [156, 39, 176],         // Purple
+            neutral: [158, 158, 158]      // Gray
+          };
+          const color = colorMap[emotion];
+          
+          addText('YOU:', 10, [33, 150, 243], true);
+          // Add highlighted text with emotion color
+          addText(message.content, 9, [50, 50, 50], false, color);
+        } else {
+          addText('EMURA:', 10, [156, 39, 176], true);
+          addText(message.content, 9, [50, 50, 50]);
+        }
+        yPosition += 3;
+      });
+      
+      console.log('✅ PDF generated successfully');
+      
+      // Save PDF
+      const fileName = `Therapy_Report_${new Date(session.date).toLocaleDateString('en-US').replace(/\//g, '-')}.pdf`;
+      pdf.save(fileName);
+      
+    } catch (error) {
+      console.error('Error generating PDF report:', error);
+      alert('Failed to generate PDF report. Please try again.');
+    } finally {
+      setIsGeneratingReport(false);
+    }
+  };
+
   useEffect(() => {
     if (typeof window === "undefined") {
       setHasEntered(true);
@@ -597,6 +811,28 @@ ${conversationText}`;
                       </h2>
                       {activeIndex >= 0 && sessions[activeIndex] && (
                         <div className="flex items-center gap-2">
+                          <button
+                            onClick={generatePDFReport}
+                            disabled={isGeneratingReport}
+                            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all duration-200 hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed border-green-500/30 bg-green-600/10 text-green-600 hover:bg-green-600/20 hover:border-green-500/50 hover:shadow-md`}
+                          >
+                            {isGeneratingReport ? (
+                              <>
+                                <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                <span>Generating...</span>
+                              </>
+                            ) : (
+                              <>
+                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                </svg>
+                                <span>Report</span>
+                              </>
+                            )}
+                          </button>
                           <button
                             onClick={analyzeEmotions}
                             disabled={isLoadingEmotions}
