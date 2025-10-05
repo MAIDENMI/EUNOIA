@@ -112,7 +112,7 @@ export default function CallPageBackup() {
         stream.getTracks().forEach(track => track.stop());
       }
     };
-  }, []);
+  }, [stream]);
 
   // Apply stream to video element whenever it changes
   useEffect(() => {

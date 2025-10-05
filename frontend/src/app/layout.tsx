@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "EUNOIA - AI Therapy Platform",
+  title: "Veloria - AI Therapy Platform",
   description: "Your personal AI therapy companion",
 };
 

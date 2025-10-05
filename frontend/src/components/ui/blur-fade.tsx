@@ -1,7 +1,13 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { motion, useInView, useAnimation, Variants } from "framer-motion";
+import {
+  motion,
+  useInView,
+  useAnimation,
+  Variants,
+  type UseInViewOptions,
+} from "framer-motion";
 
 interface BlurFadeProps {
   children: React.ReactNode;
@@ -14,7 +20,7 @@ interface BlurFadeProps {
   delay?: number;
   yOffset?: number;
   inView?: boolean;
-  inViewMargin?: string;
+  inViewMargin?: UseInViewOptions["margin"];
   blur?: string;
 }
 

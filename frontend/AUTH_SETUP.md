@@ -28,7 +28,7 @@
    - Go to "APIs & Services" > "Credentials"
    - Click "Create Credentials" > "OAuth client ID"
    - Choose "Web application"
-   - Name it (e.g., "EUNOIA Login")
+   - Name it (e.g., "Veloria Login")
    
 5. **Add Authorized Redirect URIs** ⚠️ CRITICAL STEP
    - In the OAuth client configuration, find "Authorized redirect URIs"

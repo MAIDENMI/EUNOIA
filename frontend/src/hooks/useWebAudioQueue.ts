@@ -14,7 +14,7 @@ export const useWebAudioQueue = () => {
 
   const getAudioContext = useCallback(() => {
     if (!audioContextRef.current) {
-      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
     }
     return audioContextRef.current;
   }, []);
@@ -96,7 +96,7 @@ export const useWebAudioQueue = () => {
               console.log('🔊 Starting Web Audio playback...');
               source.start(0);
             },
-            (error) => {
+            (error: DOMException) => {
               console.error('❌ Audio decode error:', error);
               reject(new Error(`Failed to decode audio: ${error.message || error}`));
             }
@@ -108,28 +108,6 @@ export const useWebAudioQueue = () => {
       }
     });
   }, [getAudioContext]);
-
-  const playAudioFromBase64 = useCallback(async (base64Audio: string, isPCM: boolean = true): Promise<void> => {
-    try {
-      console.log('🔊 Converting base64 to ArrayBuffer, length:', base64Audio.length);
-      
-      // Convert base64 to ArrayBuffer
-      const binaryString = atob(base64Audio);
-      const bytes = new Uint8Array(binaryString.length);
-      for (let i = 0; i < binaryString.length; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
-      }
-      
-      console.log('🔊 First bytes:', 
-        Array.from(bytes.slice(0, 8)).map(b => '0x' + b.toString(16).padStart(2, '0')).join(' ')
-      );
-      
-      await playAudioBuffer(bytes.buffer, isPCM);
-    } catch (error) {
-      console.error('❌ Error in playAudioFromBase64:', error);
-      throw error;
-    }
-  }, [playAudioBuffer]);
 
   const processQueue = useCallback(async () => {
     if (isPlaying || queueRef.current.length === 0) {
@@ -180,7 +158,7 @@ export const useWebAudioQueue = () => {
     if (currentSourceRef.current) {
       try {
         currentSourceRef.current.stop();
-      } catch (e) {
+      } catch {
         // Ignore if already stopped
       }
       currentSourceRef.current = null;
@@ -192,7 +170,7 @@ export const useWebAudioQueue = () => {
     if (currentSourceRef.current) {
       try {
         currentSourceRef.current.stop();
-      } catch (e) {
+      } catch {
         // Ignore if already stopped
       }
       currentSourceRef.current = null;
