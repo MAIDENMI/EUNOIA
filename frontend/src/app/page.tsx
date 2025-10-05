@@ -3,9 +3,8 @@ import { useState, useEffect } from "react";
 import { AnimatedFeatureCard } from "@/components/ui/feature-card-1";
 import AnimatedGradientBackground from "@/components/ui/animated-gradient-background";
 import BlurFade from "@/components/ui/blur-fade";
-import { InfiniteSlider } from "@/components/ui/infinite-slider";
-import { ProgressiveBlur } from "@/components/ui/progressive-blur";
 import Link from "next/link";
+import Image from "next/image";
 import { useSession, signOut } from "next-auth/react";
 import { LogOut } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -50,7 +49,7 @@ export default function Home() {
       </div>
       
       {/* Auth Button - Top Right */}
-      <div className="absolute top-6 right-6 z-20">
+      <div className="absolute top-8 right-8 z-20">
         <BlurFade delay={0.1} inView>
           <button
             onClick={() => signOut({ callbackUrl: '/login' })}
@@ -58,13 +57,27 @@ export default function Home() {
             aria-label="Sign Out"
             title="Logout"
           >
-            <LogOut className="w-4 h-4" />
+            <LogOut className="w-6 h-6" />
           </button>
         </BlurFade>
       </div>
       
       {/* Content */}
       <div className="relative z-10 flex flex-col items-center min-h-screen px-4 py-16 sm:px-6 lg:px-8">
+        {/* Logo */}
+        <BlurFade delay={0.1} inView>
+          <div className="mb-12">
+            <Image 
+              src="/velora.png" 
+              alt="Velora" 
+              width={300} 
+              height={100}
+              priority
+              className="w-auto h-16 sm:h-20 lg:h-24"
+            />
+          </div>
+        </BlurFade>
+
         {/* Header Section with BlurFade */}
         <section id="header" className="mb-8 text-center max-w-4xl">
           <BlurFade delay={0.25} inView>
@@ -127,78 +140,6 @@ export default function Home() {
             </div>
           </BlurFade>
         </div>
-
-        {/* Logos Section */}
-        <BlurFade delay={0.6} inView>
-          <section className="w-full max-w-7xl mt-16 mb-4">
-            <div className="relative rounded-2xl border border-border/50 bg-card/30 backdrop-blur-sm p-8">
-              <div className="flex flex-col items-center md:flex-row gap-6">
-                <div className="md:max-w-44 md:border-r md:border-border/50 md:pr-6 shrink-0">
-                  <p className="text-center md:text-end text-sm text-muted-foreground">Trusted by leading organizations</p>
-                </div>
-                <div className="relative flex-1 w-full overflow-hidden">
-                  <InfiniteSlider
-                    durationOnHover={20}
-                    duration={40}
-                    gap={64}>
-                    <div className="flex items-center justify-center w-40">
-                      <img
-                        className="mx-auto h-8 w-auto object-contain opacity-70 hover:opacity-100 transition-opacity"
-                        src="https://upload.wikimedia.org/wikipedia/commons/9/95/Infosys_logo.svg"
-                        alt="Infosys Logo"
-                      />
-                    </div>
-                    <div className="flex items-center justify-center w-40">
-                      <img
-                        className="mx-auto h-8 w-auto object-contain opacity-70 hover:opacity-100 transition-opacity"
-                        src="https://upload.wikimedia.org/wikipedia/commons/5/51/Google_Cloud_logo.svg"
-                        alt="Google Cloud Logo"
-                      />
-                    </div>
-                    <div className="flex items-center justify-center w-40">
-                      <img
-                        className="mx-auto h-8 w-auto object-contain opacity-70 hover:opacity-100 transition-opacity"
-                        src="/logos/elevenlabs-new.svg"
-                        alt="ElevenLabs Logo"
-                      />
-                    </div>
-                    <div className="flex items-center justify-center w-40">
-                      <img
-                        className="mx-auto h-8 w-auto object-contain opacity-70 hover:opacity-100 transition-opacity"
-                        src="https://upload.wikimedia.org/wikipedia/commons/4/4b/Cloudflare_Logo.svg"
-                        alt="Cloudflare Logo"
-                      />
-                    </div>
-                    <div className="flex items-center justify-center w-40">
-                      <img
-                        className="mx-auto h-8 w-auto object-contain opacity-70 hover:opacity-100 transition-opacity"
-                        src="https://static.mlh.io/brand-assets/logo/official/mlh-logo-black.svg"
-                        alt="Major League Hacking Logo"
-                      />
-                    </div>
-                    <div className="flex items-center justify-center w-40">
-                      <img
-                        className="mx-auto h-12 w-auto object-contain opacity-70 hover:opacity-100 transition-opacity"
-                        src="https://upload.wikimedia.org/wikipedia/commons/c/cc/Harvard_University_coat_of_arms.svg"
-                        alt="Harvard University Logo"
-                      />
-                    </div>
-                  </InfiniteSlider>
-                  <ProgressiveBlur
-                    className="absolute inset-y-0"
-                    direction="left"
-                    blurIntensity={4}
-                  />
-                  <ProgressiveBlur
-                    className="absolute inset-y-0"
-                    direction="right"
-                    blurIntensity={4}
-                  />
-                </div>
-              </div>
-            </div>
-          </section>
-        </BlurFade>
       </div>
     </div>
   );

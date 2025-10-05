@@ -1,10 +1,10 @@
 "use client"
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import Link from "next/link";
 import AnimatedGradientBackground from "@/components/ui/animated-gradient-background";
 import { Card } from "@/components/ui/card";
 import { Dock } from "@/components/ui/dock-two";
 import { FadingTextStream } from "@/components/ui/fading-text-stream";
-import BlurFade from "@/components/ui/blur-fade";
 import { motion, useMotionValue, animate } from "framer-motion";
 import { 
   Grid2x2, 
@@ -22,9 +22,8 @@ import {
   ArrowUp,
   Square,
   MessageSquare,
-  LogOut
+  History
 } from "lucide-react";
-import { useSession, signOut } from "next-auth/react";
 import {
   PromptInput,
   PromptInputAction,
@@ -688,20 +687,6 @@ export default function CallPage() {
       {/* Gradient Background */}
       <AnimatedGradientBackground audioLevel={audioLevel} isListening={isListening} />
       
-      {/* Logout Button - Top Right */}
-      <div className="absolute top-6 right-6 z-20">
-        <BlurFade delay={0.1} inView>
-          <button
-            onClick={() => signOut({ callbackUrl: '/login' })}
-            className="text-red-500 hover:text-red-600 transition-colors cursor-pointer"
-            aria-label="Sign Out"
-            title="Logout"
-          >
-            <LogOut className="w-4 h-4" />
-          </button>
-        </BlurFade>
-      </div>
-
       {/* Content */}
       <div className="relative z-10 flex items-center justify-center h-full p-8">
         <div className="w-full h-full flex flex-col px-6 py-2 gap-1">
@@ -951,16 +936,13 @@ export default function CallPage() {
               <div className="p-4 border-b">
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="text-sm font-semibold">Conversation</h3>
-                  <div className={`flex items-center gap-2 px-2 py-1 rounded-full text-xs ${
-                    isAgentConnected 
-                      ? 'bg-green-500/20 text-green-400' 
-                      : 'bg-gray-500/20 text-gray-400'
-                  }`}>
-                    <div className={`w-1.5 h-1.5 rounded-full ${
-                      isAgentConnected ? 'bg-green-400 animate-pulse' : 'bg-gray-400'
-                    }`} />
-                    {isAgentConnected ? 'Connected' : 'Offline'}
-                  </div>
+                  <Link 
+                    href="/history"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs bg-purple-500/20 text-purple-400 border border-purple-500/30 hover:bg-purple-500/30 hover:border-purple-500/50 transition-all duration-200"
+                  >
+                    <History className="w-3 h-3" />
+                    View All History
+                  </Link>
                 </div>
                 <p className="text-xs text-muted-foreground">
                   {messages.length === 0 
