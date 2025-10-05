@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 100" fill="none">
+  <g fill="currentColor">
+    <!-- II bars -->
+    <rect x="0" y="0" width="8" height="100"/>
+    <rect x="12" y="0" width="8" height="100"/>
+    
+    <!-- Eleven text -->
+    <text x="28" y="45" font-family="Arial, sans-serif" font-size="42" font-weight="bold">Eleven</text>
+    
+    <!-- Labs text -->
+    <text x="28" y="95" font-family="Arial, sans-serif" font-size="42" font-weight="bold">Labs</text>
+  </g>
+</svg>
