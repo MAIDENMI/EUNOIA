@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useCallback } from "react";
 
 interface AnimatedGradientBackgroundProps {
    /** 
@@ -167,7 +167,7 @@ const AnimatedGradientBackground: React.FC<AnimatedGradientBackgroundProps> = Re
    };
 
    // Helper function to interpolate between two colors
-   const lerpColor = (color1: string, color2: string, factor: number): string => {
+   const lerpColor = useCallback((color1: string, color2: string, factor: number): string => {
       if (color1 === "transparent" && color2 === "transparent") return "transparent";
       if (color2 === "transparent") {
          // Fade current color toward transparency
@@ -188,7 +188,7 @@ const AnimatedGradientBackground: React.FC<AnimatedGradientBackgroundProps> = Re
       const b = b1 + (b2 - b1) * factor;
       
       return rgbToHex(r, g, b);
-   };
+   }, []);
 
    useEffect(() => {
       let animationFrame: number;
@@ -332,7 +332,7 @@ const AnimatedGradientBackground: React.FC<AnimatedGradientBackgroundProps> = Re
       animationFrame = requestAnimationFrame(animateGradient);
 
       return () => cancelAnimationFrame(animationFrame); // Cleanup animation
-   }, [startingGap, Breathing, gradientColors, gradientStops, animationSpeed, breathingRange, topOffset, audioLevel, audioSensitivity, isListening, hoverColor]);
+   }, [startingGap, Breathing, gradientColors, gradientStops, animationSpeed, breathingRange, topOffset, audioLevel, audioSensitivity, isListening, hoverColor, lerpColor]);
 
    return (
       <motion.div

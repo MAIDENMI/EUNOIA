@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Image from "next/image";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils"; // Assuming you have a `cn` utility from shadcn
 
@@ -83,9 +84,11 @@ const AnimatedFeatureCard = React.forwardRef<
         }}
         transition={{ type: "spring", stiffness: 200, damping: 15 }}
       >
-        <img
+        <Image
           src={imageSrc}
           alt={tag}
+          width={160}
+          height={160}
           className="w-32 h-32 sm:w-36 sm:h-36 lg:w-40 lg:h-40 object-contain"
         />
       </motion.div>

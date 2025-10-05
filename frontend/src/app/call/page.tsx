@@ -1,8 +1,7 @@
 "use client"
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import AnimatedGradientBackground from "@/components/ui/animated-gradient-background";
-import { Card } from "@/components/ui/card";
 import { Dock } from "@/components/ui/dock-two";
 import { FadingTextStream } from "@/components/ui/fading-text-stream";
 import { motion, useMotionValue, animate } from "framer-motion";
@@ -15,10 +14,7 @@ import {
   VideoOff, 
   PhoneOff,
   Phone,
-  MoreVertical,
   Subtitles,
-  Menu,
-  ChevronDown,
   ArrowUp,
   Square,
   MessageSquare,
@@ -43,14 +39,11 @@ export default function CallPage() {
   const [isVideoOn, setIsVideoOn] = useState(true);
   const [isCaptionsOn, setIsCaptionsOn] = useState(false);
   const [callTime, setCallTime] = useState(0);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [voiceProvider, setVoiceProvider] = useState<"google" | "eleven">("eleven");
   const [useWebSocket, setUseWebSocket] = useState<boolean>(true); // Toggle between WebSocket and legacy mode (default: true)
-  const [isSpeaking, setIsSpeaking] = useState(false);
   const [transcript, setTranscript] = useState<string>("");
   const [aiResponse, setAiResponse] = useState<string>("");
-  const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [messages, setMessages] = useState<Array<{ role: string; content: string }>>([]);
   const [permissionError, setPermissionError] = useState<string | null>(null);
@@ -59,7 +52,7 @@ export default function CallPage() {
   const [isAvatarReady, setIsAvatarReady] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const recognitionRef = useRef<any>(null);
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
   const talkingHeadRef = useRef<HTMLIFrameElement>(null);
   const userId = useRef<string>(`user_${Date.now()}`);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -138,7 +131,6 @@ export default function CallPage() {
     stopConversation,
     isConnected: isAgentConnected,
     isAgentSpeaking,
-    error: agentError,
     sendContextualUpdate,
     interruptAgent,
   } = useElevenLabsAgent({
@@ -158,7 +150,6 @@ export default function CallPage() {
       // Send text to TalkingHead for TTS + lip-sync (using configured voice provider)
       if (talkingHeadRef.current && talkingHeadRef.current.contentWindow) {
         console.log('📤 Sending text to TalkingHead for TTS + animation');
-        setIsSpeaking(true);
         
         // Send speak command with the agent's text response
         talkingHeadRef.current.contentWindow.postMessage({
@@ -172,7 +163,7 @@ export default function CallPage() {
         const estimatedDuration = (words / wordsPerMinute) * 60 * 1000;
         
         setTimeout(() => {
-          setIsSpeaking(false);
+          // setIsSpeaking(false); // This state variable was removed
         }, estimatedDuration);
       }
     },
@@ -203,63 +194,40 @@ export default function CallPage() {
   
   // Removed placeholder sampleText. Show only real transcript/response in UI.
 
-  // Voice processing functions
-  const startRecording = async () => {
-    // Check for microphone permission first
+  const makeTalkingHeadSpeak = useCallback(async (text: string) => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      stream.getTracks().forEach(track => track.stop()); // Stop the test stream
+      // Send message to TalkingHead iframe
+      if (talkingHeadRef.current && talkingHeadRef.current.contentWindow) {
+        talkingHeadRef.current.contentWindow.postMessage({
+          type: 'SPEAK',
+          text: text,
+          voice: 'Rachel'
+        }, 'http://localhost:8080');
+      }
+
+      // Get voice from our service
+      const voiceResponse = await fetch('http://localhost:8001/voice/synthesize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: text,
+          voice_id: '21m00Tcm4TlvDq8ikWAM' // Rachel
+        })
+      });
+
+      if (voiceResponse.ok) {
+        const voiceData = await voiceResponse.json();
+        if (voiceData.audio_base64) {
+          await playAudio(voiceData.audio_base64);
+        }
+      }
+
     } catch (error) {
-      console.error('Microphone permission denied:', error);
-      setPermissionError('Microphone access is required for voice chat. Please allow microphone access and try again.');
-      setShowPermissionHelp(true);
-      return;
+      console.error('TalkingHead speak error:', error);
     }
+  }, []);
 
-    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-      alert('Speech recognition not supported in this browser. Please use Chrome, Edge, or Safari.');
-      return;
-    }
-
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    const recognition = new SpeechRecognition();
-
-    recognition.continuous = false;
-    recognition.interimResults = false;
-    recognition.lang = 'en-US';
-
-    recognition.onstart = () => {
-      setIsRecording(true);
-      setIsListening(true);
-      setTranscript("");
-      setAiResponse("");
-    };
-
-    recognition.onresult = (event: any) => {
-      const result = event.results[0][0].transcript;
-      setTranscript(result);
-      setIsRecording(false);
-      setIsListening(false);
-      processMessage(result);
-    };
-
-    recognition.onerror = (event: any) => {
-      console.error('Speech recognition error:', event.error);
-      setIsRecording(false);
-      setIsListening(false);
-      setAiResponse("Sorry, I couldn't hear you clearly. Please try again.");
-    };
-
-    recognition.onend = () => {
-      setIsRecording(false);
-      setIsListening(false);
-    };
-
-    recognitionRef.current = recognition;
-    recognition.start();
-  };
-
-  const processMessage = async (message: string) => {
+  const processMessage = useCallback(async (message: string) => {
     setIsProcessing(true);
     
     try {
@@ -302,43 +270,59 @@ export default function CallPage() {
     } finally {
       setIsProcessing(false);
     }
-  };
+  }, [messages, makeTalkingHeadSpeak]);
 
-  const makeTalkingHeadSpeak = async (text: string) => {
+  // Voice processing functions
+  const startRecording = useCallback(async () => {
+    // Check for microphone permission first
     try {
-      setIsSpeaking(true);
-      
-      // Send message to TalkingHead iframe
-      if (talkingHeadRef.current && talkingHeadRef.current.contentWindow) {
-        talkingHeadRef.current.contentWindow.postMessage({
-          type: 'SPEAK',
-          text: text,
-          voice: 'Rachel'
-        }, 'http://localhost:8080');
-      }
-
-      // Get voice from our service
-      const voiceResponse = await fetch('http://localhost:8001/voice/synthesize', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          text: text,
-          voice_id: '21m00Tcm4TlvDq8ikWAM' // Rachel
-        })
-      });
-
-      if (voiceResponse.ok) {
-        const voiceData = await voiceResponse.json();
-        if (voiceData.audio_base64) {
-          await playAudio(voiceData.audio_base64);
-        }
-      }
-
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach(track => track.stop()); // Stop the test stream
     } catch (error) {
-      console.error('TalkingHead speak error:', error);
-      setIsSpeaking(false);
+      console.error('Microphone permission denied:', error);
+      setPermissionError('Microphone access is required for voice chat. Please allow microphone access and try again.');
+      setShowPermissionHelp(true);
+      return;
     }
-  };
+
+    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+      alert('Speech recognition not supported in this browser. Please use Chrome, Edge, or Safari.');
+      return;
+    }
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const recognition = new SpeechRecognition();
+
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = 'en-US';
+
+    recognition.onstart = () => {
+      setIsListening(true);
+      setTranscript("");
+      setAiResponse("");
+    };
+
+    recognition.onresult = (event: SpeechRecognitionEvent) => {
+      const result = event.results[0][0].transcript;
+      setTranscript(result);
+      setIsListening(false);
+      processMessage(result);
+    };
+
+    recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
+      console.error('Speech recognition error:', event.error);
+      setIsListening(false);
+      setAiResponse("Sorry, I couldn't hear you clearly. Please try again.");
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+    };
+
+    recognitionRef.current = recognition;
+    recognition.start();
+  }, [processMessage]);
 
   const playAudio = (base64Audio: string): Promise<void> => {
     return new Promise((resolve, reject) => {
@@ -355,19 +339,19 @@ export default function CallPage() {
         
         audio.onended = () => {
           URL.revokeObjectURL(audioUrl);
-          setIsSpeaking(false);
+          // setIsSpeaking(false); // This state variable was removed
           resolve();
         };
         
         audio.onerror = (error) => {
           URL.revokeObjectURL(audioUrl);
-          setIsSpeaking(false);
+          // setIsSpeaking(false); // This state variable was removed
           reject(error);
         };
         
         audio.play().catch(reject);
       } catch (error) {
-        setIsSpeaking(false);
+        // setIsSpeaking(false); // This state variable was removed
         reject(error);
       }
     });
@@ -399,7 +383,7 @@ export default function CallPage() {
     } catch {}
   }, []);
 
-  const postToIframe = (type: string, payload?: any) => {
+  const postToIframe = (type: string, payload?: Record<string, unknown> | string) => {
     try {
       const target = talkingHeadRef.current?.contentWindow;
       if (!target) return;
@@ -442,18 +426,6 @@ export default function CallPage() {
     }, 1500);
   };
 
-  const handleVoiceChange = (val: "google" | "eleven") => {
-    setVoiceProvider(val);
-    sessionStorage.setItem("voice-provider", val);
-    postToIframe("setVoice", { value: val });
-  };
-
-  const handleWebSocketToggle = () => {
-    const newValue = !useWebSocket;
-    setUseWebSocket(newValue);
-    sessionStorage.setItem("use-websocket", String(newValue));
-  };
-
   // Handle starting/stopping the WebSocket conversation
   const handleToggleConversation = useCallback(async () => {
     console.log('🎙️ Toggle conversation clicked', { useWebSocket, isAgentConnected, agentId: config.elevenlabs.agentId });
@@ -468,7 +440,7 @@ export default function CallPage() {
       console.log('🛑 Ending conversation immediately...');
       
       // Immediately stop any speaking/audio
-      setIsSpeaking(false);
+      // setIsSpeaking(false); // This state variable was removed
       interruptAgent(); // Stop agent audio playback
       
       // Stop TalkingHead from speaking
@@ -518,7 +490,7 @@ export default function CallPage() {
         setShowPermissionHelp(true);
       }
     }
-  }, [useWebSocket, isAgentConnected, sendContextualUpdate, stopConversation, startConversation, voiceProvider, interruptAgent]);
+  }, [useWebSocket, isAgentConnected, stopConversation, startConversation, voiceProvider, interruptAgent, startRecording]);
 
   // Global keyboard shortcuts
   useEffect(() => {
@@ -623,7 +595,7 @@ export default function CallPage() {
         stream.getTracks().forEach(track => track.stop());
       }
     };
-  }, []);
+  }, [stream]);
 
   // Apply stream to video element whenever it changes
   useEffect(() => {
@@ -1072,7 +1044,7 @@ export default function CallPage() {
                           variant="destructive"
                           onClick={() => {
                             interruptAgent();
-                            setIsSpeaking(false);
+                            // setIsSpeaking(false); // This state variable was removed
                           }}
                         >
                           <Square className="w-4 h-4" />
@@ -1167,8 +1139,8 @@ export default function CallPage() {
             <div className="text-sm text-gray-500 mb-6">
               <p className="mb-2"><strong>To enable voice chat:</strong></p>
               <ol className="list-decimal list-inside space-y-1">
-                <li>Click the microphone icon in your browser's address bar</li>
-                <li>Select "Allow" for microphone access</li>
+                <li>Click the microphone icon in your browser&apos;s address bar</li>
+                <li>Select &quot;Allow&quot; for microphone access</li>
                 <li>Refresh the page and try again</li>
               </ol>
             </div>

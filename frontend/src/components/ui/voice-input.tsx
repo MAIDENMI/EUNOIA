@@ -24,32 +24,7 @@ export function VoiceInput({
   const animationFrameRef = React.useRef<number | null>(null)
   const streamRef = React.useRef<MediaStream | null>(null)
 
-  React.useEffect(() => {
-    let intervalId: NodeJS.Timeout
-
-    if (_listening) {
-      onStart?.()
-      intervalId = setInterval(() => {
-        _setTime((t) => t + 1)
-      }, 1000)
-      
-      // Start audio analysis
-      startAudioAnalysis()
-    } else {
-      onStop?.()
-      _setTime(0)
-      
-      // Stop audio analysis
-      stopAudioAnalysis()
-    }
-
-    return () => {
-      clearInterval(intervalId)
-      stopAudioAnalysis()
-    }
-  }, [_listening])
-
-  const startAudioAnalysis = async () => {
+  const startAudioAnalysis = React.useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       streamRef.current = stream
@@ -86,9 +61,9 @@ export function VoiceInput({
     } catch (error) {
       console.error("Error accessing microphone:", error)
     }
-  }
+  }, [onAudioLevel])
 
-  const stopAudioAnalysis = () => {
+  const stopAudioAnalysis = React.useCallback(() => {
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current)
       animationFrameRef.current = null
@@ -106,7 +81,32 @@ export function VoiceInput({
     
     analyserRef.current = null
     onAudioLevel?.(0)
-  }
+  }, [onAudioLevel])
+
+  React.useEffect(() => {
+    let intervalId: NodeJS.Timeout
+
+    if (_listening) {
+      onStart?.()
+      intervalId = setInterval(() => {
+        _setTime((t) => t + 1)
+      }, 1000)
+      
+      // Start audio analysis
+      startAudioAnalysis()
+    } else {
+      onStop?.()
+      _setTime(0)
+      
+      // Stop audio analysis
+      stopAudioAnalysis()
+    }
+
+    return () => {
+      clearInterval(intervalId)
+      stopAudioAnalysis()
+    }
+  }, [_listening, onStart, onStop, startAudioAnalysis, stopAudioAnalysis])
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60)

@@ -1,6 +1,7 @@
 'use client'
 import React from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { InfiniteSlider } from '@/components/ui/infinite-slider'
 import { ProgressiveBlur } from '@/components/ui/progressive-blur'
@@ -69,7 +70,9 @@ export function HeroSection() {
                                     duration={40}
                                     gap={64}>
                                     <div className="flex items-center justify-center w-40">
-                                        <img
+                                        <Image
+                                            width={100}
+                                            height={32}
                                             className="mx-auto h-8 w-auto object-contain"
                                             src="https://upload.wikimedia.org/wikipedia/commons/9/95/Infosys_logo.svg"
                                             alt="Infosys Logo"
@@ -77,35 +80,45 @@ export function HeroSection() {
                                     </div>
 
                                     <div className="flex items-center justify-center w-40">
-                                        <img
+                                        <Image
+                                            width={100}
+                                            height={32}
                                             className="mx-auto h-8 w-auto object-contain"
                                             src="https://upload.wikimedia.org/wikipedia/commons/5/51/Google_Cloud_logo.svg"
                                             alt="Google Cloud Logo"
                                         />
                                     </div>
                                     <div className="flex items-center justify-center w-40">
-                                        <img
+                                        <Image
+                                            width={100}
+                                            height={32}
                                             className="mx-auto h-8 w-auto object-contain"
                                             src="/logos/elevenlabs-new.svg"
                                             alt="ElevenLabs Logo"
                                         />
                                     </div>
                                     <div className="flex items-center justify-center w-40">
-                                        <img
+                                        <Image
+                                            width={100}
+                                            height={32}
                                             className="mx-auto h-8 w-auto object-contain"
                                             src="https://upload.wikimedia.org/wikipedia/commons/4/4b/Cloudflare_Logo.svg"
                                             alt="Cloudflare Logo"
                                         />
                                     </div>
                                     <div className="flex items-center justify-center w-40">
-                                        <img
+                                        <Image
+                                            width={100}
+                                            height={32}
                                             className="mx-auto h-8 w-auto object-contain"
                                             src="https://static.mlh.io/brand-assets/logo/official/mlh-logo-black.svg"
                                             alt="Major League Hacking Logo"
                                         />
                                     </div>
                                     <div className="flex items-center justify-center w-40">
-                                        <img
+                                        <Image
+                                            width={100}
+                                            height={48}
                                             className="mx-auto h-12 w-auto object-contain"
                                             src="https://upload.wikimedia.org/wikipedia/commons/c/cc/Harvard_University_coat_of_arms.svg"
                                             alt="Harvard University Logo"

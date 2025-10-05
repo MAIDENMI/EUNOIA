@@ -212,7 +212,6 @@ export const useElevenLabsAgent = (options: UseElevenLabsAgentOptions = {}) => {
     isConnected,
     agentId,
     signedUrl,
-    useAgentAudio,
     startStreaming,
     stopStreaming,
     onUserTranscript,
