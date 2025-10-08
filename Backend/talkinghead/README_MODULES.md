@@ -54,7 +54,7 @@ const voiceType = cfg('voice-type');
 cfg('voice-eleven-id', 'YOUR_VOICE_ID');
 
 // Speak with ElevenLabs
-await elevenSpeak(head, "Hello world!", outputNode, addTextCallback);
+await elevenSpeak(head, "Hello David!", outputNode, addTextCallback);
 
 // Chat with Gemini
 const messages = geminiBuildMessage();

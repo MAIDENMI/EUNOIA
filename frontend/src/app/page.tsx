@@ -51,7 +51,7 @@ export default function Home() {
         <section id="header" className="mb-12 text-center">
           <BlurFade delay={0.25} inView>
             <h2 className="text-3xl font-bold tracking-tighter sm:text-5xl xl:text-6xl/none">
-              Hello World 👋
+              Hello David!
             </h2>
           </BlurFade>
           <BlurFade delay={0.25 * 2} inView>
